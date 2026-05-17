@@ -1,0 +1,56 @@
+# Environment files
+.env
+.env.local
+.env.production
+.env.*.local
+backend/.env
+backend/.env.local
+backend/.env.production
+frontend/.env
+frontend/.env.local
+frontend/.env.production
+
+# Firebase service account
+*service-account*.json
+*firebase-adminsdk*.json
+serviceAccountKey.json
+
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Build outputs
+dist/
+build/
+.vite/
+*.tsbuildinfo
+
+# Docker
+*.log
+docker-compose.override.yml
+
+# Firebase emulator data
+firebase/.emulator-data/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Python
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# GCP
+.gcloud/
