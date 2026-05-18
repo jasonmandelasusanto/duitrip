@@ -48,7 +48,7 @@ substitutions:
   _VITE_FIREBASE_STORAGE_BUCKET: duitrip-prod.appspot.com
   _VITE_FIREBASE_MESSAGING_SENDER_ID: ""
   _VITE_FIREBASE_APP_ID: ""
-  _VITE_TURNSTILE_SITE_KEY: ""
+  _VITE_TURNSTILE_SITE_KEY: ""   # real site key for prod
 
   # ── CORS allowed origins (comma-separated) ────────────────────────────────
   _ALLOWED_ORIGINS: https://duitrip.com,https://www.duitrip.com
@@ -75,6 +75,8 @@ steps:
       - VITE_FIREBASE_APP_ID=${_VITE_FIREBASE_APP_ID}
       - --build-arg
       - VITE_TURNSTILE_SITE_KEY=${_VITE_TURNSTILE_SITE_KEY}
+      - --build-arg
+      - VITE_API_BASE_URL=
       - --build-arg
       - VITE_USE_FIREBASE_EMULATOR=false
       - -t
@@ -129,4 +131,4 @@ images:
 
 options:
   logging: CLOUD_LOGGING_ONLY
-  machineType: E2_HIGHCPU_8
+  machineType: E2_HIGHCPU_8   # faster npm install + tsc build
