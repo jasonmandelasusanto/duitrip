@@ -13,9 +13,9 @@ export default {
           border: '#263348',
         },
         teal: {
-          light: '#38BDF8',
-          DEFAULT: '#0EA5E9',
-          dark: '#0284C7',
+          light: '#82D8F3',
+          DEFAULT: '#4DC3EA',
+          dark: '#229EC8',
         },
         amber: {
           light: '#FCD34D',

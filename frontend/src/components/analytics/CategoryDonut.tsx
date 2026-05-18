@@ -8,7 +8,7 @@ interface CategoryDonutProps {
   total?: number;
 }
 
-const COLORS = ['#0EA5E9', '#F59E0B', '#10B981', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316'];
+const COLORS = ['#4DC3EA', '#F59E0B', '#10B981', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316'];
 
 export function CategoryDonut({ data, currency, total }: CategoryDonutProps) {
   return (

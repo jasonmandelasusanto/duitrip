@@ -17,7 +17,7 @@ export default function KofiWidget() {
 
   useEffect(() => {
     const render = () => {
-      window.kofiwidget2.init('Support Duitrip on Ko-fi', '#0EA5E9', 'C0C11WUOS5');
+      window.kofiwidget2.init('Support Duitrip on Ko-fi', '#4DC3EA', 'C0C11WUOS5');
       setHtml(window.kofiwidget2.getHTML());
     };
 

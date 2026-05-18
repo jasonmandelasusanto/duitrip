@@ -32,7 +32,7 @@ export function SpendingByDay({ data, currency }: SpendingByDayProps) {
         />
         <Bar dataKey="amount" radius={[4, 4, 0, 0]}>
           {data.map((d, i) => (
-            <Cell key={i} fill={d.date === maxDay?.date ? '#F59E0B' : '#0EA5E9'} />
+            <Cell key={i} fill={d.date === maxDay?.date ? '#F59E0B' : '#4DC3EA'} />
           ))}
         </Bar>
       </BarChart>

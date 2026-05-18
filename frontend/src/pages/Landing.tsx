@@ -66,7 +66,7 @@ export default function Landing() {
     <div className="min-h-screen bg-bg-base flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="text-5xl mb-3">✈️</div>
+          <img src="/logo.png" alt="Duitrip" className="w-20 h-20 mx-auto mb-3 rounded-full" />
           <h1 className="text-3xl font-bold text-text-primary">Duitrip</h1>
           <p className="text-text-secondary text-sm mt-1">Track shared trip expenses</p>
           <p className="text-text-muted text-xs mt-1 max-w-xs mx-auto">

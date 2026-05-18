@@ -23,7 +23,7 @@ export function SpendingByMember({ data, currency, average }: SpendingByMemberPr
           formatter={(value: number) => [formatCurrency(value, currency), 'Paid']}
         />
         {average && <ReferenceLine x={average} stroke="#F59E0B" strokeDasharray="4 2" />}
-        <Bar dataKey="totalPaid" fill="#0EA5E9" radius={[0, 4, 4, 0]} />
+        <Bar dataKey="totalPaid" fill="#4DC3EA" radius={[0, 4, 4, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );

@@ -38,16 +38,16 @@
 substitutions:
   _REGION: us-central1
   _SERVICE: duitrip
-  _IMAGE: us-central1-docker.pkg.dev/duitrip/duitrip/app
+  _IMAGE: us-central1-docker.pkg.dev/your-firebase-project-id/duitrip/app
 
   # ── Firebase project (non-sensitive, baked into the React bundle) ──────────
-  _FIREBASE_PROJECT_ID: duitrip-prod
-  _VITE_FIREBASE_API_KEY: ""
-  _VITE_FIREBASE_AUTH_DOMAIN: duitrip-prod.firebaseapp.com
-  _VITE_FIREBASE_PROJECT_ID: duitrip-prod
-  _VITE_FIREBASE_STORAGE_BUCKET: duitrip-prod.appspot.com
-  _VITE_FIREBASE_MESSAGING_SENDER_ID: ""
-  _VITE_FIREBASE_APP_ID: ""
+  _FIREBASE_PROJECT_ID: your-firebase-project-id
+  _VITE_FIREBASE_API_KEY: "REDACTED_FIREBASE_API_KEY"
+  _VITE_FIREBASE_AUTH_DOMAIN: your-firebase-project-id.firebaseapp.com
+  _VITE_FIREBASE_PROJECT_ID: your-firebase-project-id
+  _VITE_FIREBASE_STORAGE_BUCKET: your-firebase-project-id.firebasestorage.app
+  _VITE_FIREBASE_MESSAGING_SENDER_ID: "REDACTED_SENDER_ID"
+  _VITE_FIREBASE_APP_ID: "REDACTED_FIREBASE_APP_ID"
   _VITE_TURNSTILE_SITE_KEY: ""   # real site key for prod
 
   # ── CORS allowed origins (comma-separated) ────────────────────────────────
