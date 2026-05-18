@@ -5,10 +5,11 @@ from app.config import settings
 async def verify_turnstile(token: str, remote_ip: str | None = None) -> bool:
     """Verify a Cloudflare Turnstile token. Returns True if valid."""
     if not settings.CLOUDFLARE_TURNSTILE_SECRET_KEY:
-        # Not configured — skip verification (local dev)
         return True
     if not token:
-        return False
+        # No token sent — only block if a real key is configured
+        return not settings.CLOUDFLARE_TURNSTILE_SECRET_KEY.startswith("0x")
+
 
     data = {"secret": settings.CLOUDFLARE_TURNSTILE_SECRET_KEY, "response": token}
     if remote_ip:

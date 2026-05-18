@@ -48,7 +48,7 @@ substitutions:
   _VITE_FIREBASE_STORAGE_BUCKET: your-firebase-project-id.firebasestorage.app
   _VITE_FIREBASE_MESSAGING_SENDER_ID: "REDACTED_SENDER_ID"
   _VITE_FIREBASE_APP_ID: "REDACTED_FIREBASE_APP_ID"
-  _VITE_TURNSTILE_SITE_KEY: ""   # real site key for prod
+  _VITE_TURNSTILE_SITE_KEY: "REDACTED_TURNSTILE_SITE_KEY"
 
   # ── CORS allowed origins (comma-separated) ────────────────────────────────
   _ALLOWED_ORIGINS: https://duitrip.com,https://www.duitrip.com
