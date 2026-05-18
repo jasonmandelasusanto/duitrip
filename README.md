@@ -5,9 +5,13 @@ Multi-currency trip expense tracker. Split costs across currencies with exchange
 ## Features
 
 - **Multi-currency splits** — equal, percentage, or exact amounts; exchange rates snapshotted at creation time
-- **Ghost members** — add people who don't have an account yet
+- **Ghost members** — add people who don't have an account yet; promote them later when they join
 - **Debt simplification** — greedy algorithm minimises the number of settlement transactions
+- **Settlement history** — record settlements with optional notes; edit or delete past records
 - **Analytics** — spending by category, by day, by member, personal vs group average
+- **Expense management** — creator can edit or delete their own expenses (owners can edit any)
+- **Member management** — trip owner can invite, remove members, and promote ghost members
+- **Country flag emoji** — automatically shown next to trip titles based on destination currency
 - **Profile pictures** — client-side canvas crop (128×128 JPEG) stored as base64 in Firestore
 - **PWA** — installable, works offline for reads
 - **Cloudflare Turnstile** — optional CAPTCHA on sign-up/onboarding (skipped when site key is empty)
@@ -133,10 +137,23 @@ All endpoints are prefixed with `/api`. Auth requires a Firebase ID token in the
 | GET | `/api/trips` | List the current user's trips |
 | POST | `/api/trips` | Create a trip |
 | GET | `/api/trips/:id` | Get a trip |
-| GET | `/api/trips/:id/expenses` | List expenses |
+| PATCH | `/api/trips/:id` | Update trip details |
+| GET | `/api/trips/:id/expenses` | List expenses (paginated) |
 | POST | `/api/trips/:id/expenses` | Add an expense |
-| GET | `/api/trips/:id/settlement` | Calculate settlement plan |
+| PATCH | `/api/trips/:id/expenses/:eid` | Edit an expense (creator or owner) |
+| DELETE | `/api/trips/:id/expenses/:eid` | Delete an expense (creator within 24 h, or owner) |
+| GET | `/api/trips/:id/settlement` | Calculate outstanding settlement plan |
+| POST | `/api/trips/:id/settlement` | Record a settlement with optional note |
+| GET | `/api/trips/:id/settlements` | Settlement history |
+| PATCH | `/api/trips/:id/settlements/:sid` | Edit a settlement note |
+| DELETE | `/api/trips/:id/settlements/:sid` | Delete a settlement record |
 | GET | `/api/trips/:id/analytics` | Spending analytics |
+| POST | `/api/trips/:id/invites` | Invite a member by email |
+| POST | `/api/trips/:id/invites/accept` | Accept a pending invite |
+| POST | `/api/trips/:id/members/ghost` | Add a ghost member |
+| PATCH | `/api/trips/:id/members/ghost/:gid` | Update a ghost member's name/currency |
+| POST | `/api/trips/:id/members/ghost/:gid/promote` | Send invite to promote ghost to real member |
+| DELETE | `/api/trips/:id/members/:mid` | Remove a member (owner only) |
 | GET | `/api/exchange-rates/:from/:to` | Spot rate (cached 1 h) |
 | GET | `/api/users/me` | Current user profile |
 | PATCH | `/api/users/me` | Update display name, home currency, or photo |
