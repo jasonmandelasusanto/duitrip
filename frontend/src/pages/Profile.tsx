@@ -102,7 +102,10 @@ export default function Profile() {
         <Button variant="danger" className="w-full mb-8" onClick={() => { signOut(); navigate('/'); }}>Sign Out</Button>
 
         <div className="border-t border-bg-border pt-6">
-          <p className="text-center text-sm text-text-muted mb-3">Enjoying Duitrip? Support development ☕</p>
+          <div className="flex items-start gap-3 mb-3">
+            <span className="text-lg">☕</span>
+            <p className="text-sm text-text-secondary leading-snug">I intend to run this for free forever — but if you'd like to leave a tip, any amount is hugely appreciated to keep the app running.</p>
+          </div>
           <KofiWidget />
         </div>
       </div>

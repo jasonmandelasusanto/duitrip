@@ -1,7 +1,5 @@
-import os
 from fastapi import Header, HTTPException, status
 from firebase_admin import auth
-from app.config import settings
 
 
 async def get_current_user(authorization: str = Header(None)) -> dict:

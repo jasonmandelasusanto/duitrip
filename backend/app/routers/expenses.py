@@ -146,7 +146,6 @@ async def list_expenses(
 
     result = []
     for exp in expenses[offset: offset + limit]:
-        exp_id = exp.get("expenseId", "")
         payer = exp.get("paidBy")
         member_statuses = []
         for sp in exp.get("splits", []):
@@ -248,7 +247,6 @@ async def delete_expense(trip_id: str, expense_id: str, current_user: dict = Dep
     if is_creator and not is_owner:
         created_at = existing.get("createdAt")
         if created_at:
-            from datetime import timedelta
             now = datetime.now(timezone.utc)
             if isinstance(created_at, datetime):
                 age = now - created_at.replace(tzinfo=timezone.utc) if created_at.tzinfo is None else now - created_at

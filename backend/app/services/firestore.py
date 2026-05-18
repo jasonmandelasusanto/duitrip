@@ -1,5 +1,4 @@
 import os
-from google.cloud.firestore_v1 import DocumentReference
 
 _db = None
 

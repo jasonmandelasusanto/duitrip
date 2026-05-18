@@ -47,6 +47,13 @@ export default function Members() {
     } finally { setLoading(false); }
   }
 
+  async function removeMember(memberId: string) {
+    if (!tripId) return;
+    const member = trip!.members.find((m) => (m.userId || m.ghostId) === memberId);
+    if (!confirm(`Remove ${member?.displayName ?? 'this member'} from the trip?`)) return;
+    await api.delete(`/trips/${tripId}/members/${memberId}`);
+  }
+
   async function promoteGhost() {
     if (!tripId || !promoteGhostId || !promoteEmail) return;
     setLoading(true);
@@ -80,8 +87,10 @@ export default function Members() {
 
         <MemberList
           members={trip.members}
+          ownerId={trip.createdBy}
           isOwner={isOwner}
           onPromoteGhost={(ghostId) => setPromoteGhostId(ghostId)}
+          onRemoveMember={isOwner ? removeMember : undefined}
         />
 
         <div className="flex gap-3 mt-4">

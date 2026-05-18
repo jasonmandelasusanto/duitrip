@@ -70,7 +70,6 @@ async def get_analytics(trip_id: str, current_user: dict = Depends(get_current_u
     ]
 
     # Individual aggregations
-    my_splits = []
     my_total = 0.0
     my_by_category: dict[str, float] = {}
     timeline = []

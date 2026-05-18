@@ -92,6 +92,31 @@ async def promote_ghost(trip_id: str, ghost_id: str, body: GhostPromote,
     return {"ok": True, "message": f"Invite sent to {body.email}"}
 
 
+@router.delete("/{trip_id}/members/{member_id}")
+async def remove_member(trip_id: str, member_id: str, current_user: dict = Depends(get_current_user)):
+    db = get_db()
+    trip = _get_trip(db, trip_id)
+    require_trip_owner(trip, current_user["uid"])
+
+    if member_id == trip.get("createdBy"):
+        raise HTTPException(status_code=400, detail="Cannot remove the trip owner")
+
+    members = trip.get("members", [])
+    new_members = [
+        m for m in members
+        if m.get("userId") != member_id and m.get("ghostId") != member_id
+    ]
+
+    if len(new_members) == len(members):
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    db.collection("trips").document(trip_id).update({
+        "members": new_members,
+        "updatedAt": datetime.now(timezone.utc),
+    })
+    return {"ok": True}
+
+
 @router.post("/{trip_id}/invites")
 async def invite_member(trip_id: str, body: InviteCreate, current_user: dict = Depends(get_current_user)):
     db = get_db()

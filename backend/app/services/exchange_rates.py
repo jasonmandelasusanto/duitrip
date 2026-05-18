@@ -1,6 +1,5 @@
 import time
 import httpx
-from typing import Optional
 
 _cache: dict[str, dict] = {}
 _cache_ttl = 3600  # 1 hour
@@ -16,7 +15,7 @@ async def fetch_rates(base: str, symbols: list[str]) -> dict[str, float]:
         return _cache[cache_key]["rates"]
 
     try:
-        url = f"https://api.frankfurter.app/latest"
+        url = "https://api.frankfurter.app/latest"
         async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
             resp = await client.get(url, params={"base": base, "symbols": symbols_key})
             resp.raise_for_status()

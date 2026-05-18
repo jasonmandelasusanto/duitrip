@@ -71,7 +71,6 @@ async def get_settlement(trip_id: str, current_user: dict = Depends(get_current_
         })
 
     total = sum(e.get("amountInDestinationCurrency", 0) for e in expenses)
-    n = len([m for m in members if m.get("role") != "ghost"])
 
     per_member = []
     for uid, bal in balances.items():

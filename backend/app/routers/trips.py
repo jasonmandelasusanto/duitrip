@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from app.dependencies import get_current_user
 from app.models.trip import TripCreate, TripUpdate
 from app.services.firestore import get_db, doc_to_dict

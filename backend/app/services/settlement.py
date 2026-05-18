@@ -1,5 +1,3 @@
-from typing import List
-
 
 def calculate_balances(expenses: list[dict], settlements: list[dict]) -> dict[str, float]:
     """Return net balance per member: positive = owed money, negative = owes money."""
