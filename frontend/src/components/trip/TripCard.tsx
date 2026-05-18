@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import type { Trip } from '../../types';
 import { formatDateRange, tripDays } from '../../utils/date';
+import { currencyFlag } from '../../utils/flag';
 import { Avatar } from '../ui/Avatar';
 import { Badge } from '../ui/Badge';
 
@@ -10,12 +11,16 @@ interface TripCardProps {
 
 export function TripCard({ trip }: TripCardProps) {
   const realMembers = trip.members.filter((m) => m.role !== 'ghost');
+  const flag = currencyFlag(trip.destinationCurrency);
 
   return (
     <Link to={`/trips/${trip.tripId}`} className="block bg-bg-surface border border-bg-border rounded-2xl p-4 hover:border-teal/50 transition-colors">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-text-primary truncate">{trip.name}</h3>
+          <h3 className="font-semibold text-text-primary truncate">
+            {flag && <span className="mr-1.5">{flag}</span>}
+            {trip.name}
+          </h3>
           <p className="text-sm text-text-secondary mt-0.5">{trip.destination}</p>
           <p className="text-xs text-text-muted mt-1">
             {formatDateRange(trip.startDate, trip.endDate)} · {tripDays(trip.startDate, trip.endDate)} days

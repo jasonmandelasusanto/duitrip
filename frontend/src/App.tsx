@@ -35,6 +35,7 @@ export default function App() {
         <Route path="/trips/:tripId" element={<RequireAuth><TripDetail /></RequireAuth>} />
         <Route path="/trips/:tripId/analytics" element={<RequireAuth><TripAnalytics /></RequireAuth>} />
         <Route path="/trips/:tripId/expenses/new" element={<RequireAuth><AddExpense /></RequireAuth>} />
+        <Route path="/trips/:tripId/expenses/:expenseId/edit" element={<RequireAuth><AddExpense /></RequireAuth>} />
         <Route path="/trips/:tripId/settlement" element={<RequireAuth><Settlement /></RequireAuth>} />
         <Route path="/trips/:tripId/members" element={<RequireAuth><Members /></RequireAuth>} />
         <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />

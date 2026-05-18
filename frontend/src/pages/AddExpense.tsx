@@ -13,7 +13,8 @@ import { useAppStore } from '../store/useAppStore';
 type SplitMode = 'equal' | 'percentage' | 'exact';
 
 export default function AddExpense() {
-  const { tripId } = useParams<{ tripId: string }>();
+  const { tripId, expenseId } = useParams<{ tripId: string; expenseId?: string }>();
+  const isEdit = !!expenseId;
   const { trip } = useTrip(tripId);
   const { user } = useAppStore();
   const navigate = useNavigate();
@@ -30,12 +31,39 @@ export default function AddExpense() {
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<number | null>(null);
 
+  // Seed form when editing
   useEffect(() => {
-    if (trip) {
+    if (!isEdit || !trip || !expenseId) return;
+    api.get(`/trips/${tripId}/expenses/${expenseId}`).then((r) => {
+      const e = r.data;
+      setDescription(e.description);
+      setCategory(e.category);
+      setAmount(String(e.originalAmount));
+      setCurrency(e.originalCurrency);
+      setPaidBy(e.paidBy);
+      setSplitMode(e.splitMode);
+      if (e.splitMode === 'percentage') {
+        const pct: Record<string, string> = {};
+        e.splits.forEach((s: { userId: string; percentage?: number }) => {
+          pct[s.userId] = String(s.percentage ?? 0);
+        });
+        setPercentages(pct);
+      } else if (e.splitMode === 'exact') {
+        const ex: Record<string, string> = {};
+        e.splits.forEach((s: { userId: string; amountInDestinationCurrency?: number }) => {
+          ex[s.userId] = String(s.amountInDestinationCurrency ?? 0);
+        });
+        setExactAmounts(ex);
+      }
+    }).catch(console.error);
+  }, [isEdit, expenseId, tripId, trip]);
+
+  useEffect(() => {
+    if (trip && !isEdit) {
       setCurrency(trip.destinationCurrency);
       setPaidBy(user?.uid || '');
     }
-  }, [trip, user]);
+  }, [trip, user, isEdit]);
 
   useEffect(() => {
     if (trip && currency && currency !== trip.destinationCurrency) {
@@ -44,7 +72,6 @@ export default function AddExpense() {
     }
   }, [currency, trip, fetchRates]);
 
-  // Live preview
   useEffect(() => {
     if (!amount || !trip) { setPreview(null); return; }
     const n = parseFloat(amount);
@@ -88,7 +115,7 @@ export default function AddExpense() {
         }));
       }
 
-      await api.post(`/trips/${tripId}/expenses`, {
+      const payload = {
         description,
         category,
         originalAmount: parseFloat(amount),
@@ -96,7 +123,13 @@ export default function AddExpense() {
         paidBy,
         splitMode,
         splits,
-      });
+      };
+
+      if (isEdit && expenseId) {
+        await api.patch(`/trips/${tripId}/expenses/${expenseId}`, payload);
+      } else {
+        await api.post(`/trips/${tripId}/expenses`, payload);
+      }
       navigate(`/trips/${tripId}`);
     } finally {
       setLoading(false);
@@ -112,12 +145,11 @@ export default function AddExpense() {
     <div className="min-h-screen bg-bg-base">
       <div className="max-w-lg mx-auto px-4 pt-6 pb-10">
         <button onClick={() => navigate(-1)} className="text-text-secondary text-sm mb-4 hover:text-text-primary">← Back</button>
-        <h1 className="text-2xl font-bold text-text-primary mb-6">Add Expense</h1>
+        <h1 className="text-2xl font-bold text-text-primary mb-6">{isEdit ? 'Edit Expense' : 'Add Expense'}</h1>
 
         <div className="flex flex-col gap-4">
           <Input label="Description" placeholder="Dinner at Jimbaran" value={description} onChange={(e) => setDescription(e.target.value)} />
 
-          {/* Category */}
           <div>
             <label className="text-sm text-text-secondary block mb-2">Category</label>
             <div className="flex flex-wrap gap-2">
@@ -135,7 +167,6 @@ export default function AddExpense() {
             </div>
           </div>
 
-          {/* Amount + currency */}
           <div>
             <label className="text-sm text-text-secondary block mb-1">Amount</label>
             <div className="flex gap-2">
@@ -155,7 +186,6 @@ export default function AddExpense() {
             )}
           </div>
 
-          {/* Paid by */}
           <div>
             <label className="text-sm text-text-secondary block mb-1">Paid by</label>
             <select
@@ -170,7 +200,6 @@ export default function AddExpense() {
             </select>
           </div>
 
-          {/* Split mode */}
           <div>
             <label className="text-sm text-text-secondary block mb-2">Split</label>
             <div className="flex gap-2 mb-3">
@@ -214,8 +243,7 @@ export default function AddExpense() {
                         value={percentages[uid] || ''}
                         onChange={(e) => setPercentages({ ...percentages, [uid]: e.target.value })}
                         placeholder="0"
-                        min={0}
-                        max={100}
+                        min={0} max={100}
                         className="w-20 bg-bg-elevated border border-bg-border rounded-lg px-2 py-1 text-sm text-amber font-mono text-right focus:outline-none focus:border-teal"
                       />
                       <span className="text-text-muted text-sm">%</span>
@@ -250,7 +278,7 @@ export default function AddExpense() {
           </div>
 
           <Button className="w-full mt-2" size="lg" onClick={handleSubmit} disabled={!valid || loading}>
-            {loading ? 'Saving…' : 'Add Expense'}
+            {loading ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Expense'}
           </Button>
         </div>
       </div>

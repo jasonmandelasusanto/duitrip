@@ -21,10 +21,12 @@ export function SpendingByDay({ data, currency }: SpendingByDayProps) {
         />
         <YAxis hide />
         <Tooltip
-          contentStyle={{ backgroundColor: '#111827', border: '1px solid #263348', borderRadius: '0.75rem' }}
+          contentStyle={{ backgroundColor: '#111827', border: '1px solid #263348', borderRadius: '0.75rem', color: '#F1F5F9' }}
+          labelStyle={{ color: '#94A3B8' }}
+          itemStyle={{ color: '#F1F5F9' }}
           formatter={(value: number, _: string, props: { payload?: { expenseCount?: number } }) => [
             `${formatCurrency(value, currency)} (${props.payload?.expenseCount ?? 0} expenses)`,
-            '',
+            null,
           ]}
           labelFormatter={(v) => new Date(v).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
         />

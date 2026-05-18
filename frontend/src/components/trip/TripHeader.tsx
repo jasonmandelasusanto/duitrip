@@ -2,6 +2,7 @@ import type { Trip } from '../../types';
 import { Avatar } from '../ui/Avatar';
 import { formatDateRange, tripDays } from '../../utils/date';
 import { formatCurrency } from '../../utils/currency';
+import { currencyFlag } from '../../utils/flag';
 import { useAppStore } from '../../store/useAppStore';
 
 interface TripHeaderProps {
@@ -14,12 +15,16 @@ export function TripHeader({ trip, totalSpend, myShare }: TripHeaderProps) {
   const { user } = useAppStore();
   const visibleMembers = trip.members.slice(0, 5);
   const overflow = trip.members.length - 5;
+  const flag = currencyFlag(trip.destinationCurrency);
 
   return (
     <div className="bg-bg-surface border border-bg-border rounded-2xl p-4 mb-4">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h1 className="text-lg font-bold text-text-primary">{trip.name}</h1>
+          <h1 className="text-lg font-bold text-text-primary">
+            {flag && <span className="mr-1.5">{flag}</span>}
+            {trip.name}
+          </h1>
           <p className="text-sm text-text-secondary">{trip.destination}</p>
           <p className="text-xs text-text-muted mt-1">
             {formatDateRange(trip.startDate, trip.endDate)} · {tripDays(trip.startDate, trip.endDate)} days

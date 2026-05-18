@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { Expense } from '../../types';
 import { formatCurrency } from '../../utils/currency';
 import { formatTimestamp } from '../../utils/date';
@@ -9,18 +10,35 @@ const categoryEmoji = Object.fromEntries(DEFAULT_CATEGORIES.map((c) => [c.name, 
 
 interface ExpenseCardProps {
   expense: Expense;
+  tripId: string;
   destinationCurrency: string;
   members: Array<{ userId: string | null; ghostId?: string | null; displayName: string }>;
+  onDeleted?: () => void;
 }
 
-export function ExpenseCard({ expense, destinationCurrency, members }: ExpenseCardProps) {
+export function ExpenseCard({ expense, tripId, destinationCurrency, members, onDeleted }: ExpenseCardProps) {
   const [expanded, setExpanded] = useState(false);
   const { user } = useAppStore();
+  const navigate = useNavigate();
 
   const payer = members.find((m) => (m.userId || m.ghostId) === expense.paidBy);
   const myMemberId = user?.uid;
   const mySplit = expense.splits.find((s) => s.userId === myMemberId);
   const emoji = categoryEmoji[expense.category] || '🏷️';
+  const canEdit = expense.createdBy === user?.uid;
+
+  async function handleDelete(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!confirm('Delete this expense? This cannot be undone.')) return;
+    const { default: api } = await import('../../services/api');
+    await api.delete(`/trips/${tripId}/expenses/${expense.expenseId}`);
+    onDeleted?.();
+  }
+
+  function handleEdit(e: React.MouseEvent) {
+    e.stopPropagation();
+    navigate(`/trips/${tripId}/expenses/${expense.expenseId}/edit`);
+  }
 
   return (
     <div
@@ -64,7 +82,7 @@ export function ExpenseCard({ expense, destinationCurrency, members }: ExpenseCa
           <p className="text-xs text-text-muted mb-2">
             @ {expense.exchangeRateUsed.toFixed(6)} {expense.originalCurrency}/{destinationCurrency} · {formatTimestamp(expense.exchangeRateTimestamp)}
           </p>
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1 mb-3">
             {(expense.memberStatuses || []).map((ms) => (
               <div key={ms.userId} className="flex items-center gap-2 text-sm">
                 <span className={ms.status === 'outstanding' ? 'text-amber' : 'text-success'}>
@@ -79,15 +97,25 @@ export function ExpenseCard({ expense, destinationCurrency, members }: ExpenseCa
                 <span className="text-xs text-text-muted capitalize">{ms.status}</span>
               </div>
             ))}
-            {(!expense.memberStatuses || expense.memberStatuses.length === 0) && expense.splits.map((sp) => (
-              <div key={sp.userId} className="flex items-center gap-2 text-sm">
-                <span className="text-text-secondary flex-1">{sp.userId}</span>
-                <span className="font-mono text-xs text-amber">
-                  {formatCurrency(sp.amountInDestinationCurrency, destinationCurrency)}
-                </span>
-              </div>
-            ))}
+            {(!expense.memberStatuses || expense.memberStatuses.length === 0) && expense.splits.map((sp) => {
+              const member = members.find((m) => (m.userId || m.ghostId) === sp.userId);
+              return (
+                <div key={sp.userId} className="flex items-center gap-2 text-sm">
+                  <span className="text-text-secondary flex-1">{member?.displayName || sp.userId}</span>
+                  <span className="font-mono text-xs text-amber">
+                    {formatCurrency(sp.amountInDestinationCurrency, destinationCurrency)}
+                  </span>
+                </div>
+              );
+            })}
           </div>
+
+          {canEdit && (
+            <div className="flex gap-3 pt-2 border-t border-bg-border">
+              <button onClick={handleEdit} className="text-xs text-teal hover:underline font-medium">Edit</button>
+              <button onClick={handleDelete} className="text-xs text-danger hover:underline font-medium">Delete</button>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -90,6 +90,8 @@ export interface Settlement {
   settlementId: string;
   fromUserId: string;
   toUserId: string;
+  fromDisplayName: string;
+  toDisplayName: string;
   amountInDestinationCurrency: number;
   destinationCurrency: string;
   note?: string | null;

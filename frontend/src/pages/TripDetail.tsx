@@ -92,7 +92,7 @@ export default function TripDetail() {
             <p className="text-center text-text-muted py-8">No expenses yet. Add the first one!</p>
           )}
           {expenses.map((e) => (
-            <ExpenseCard key={e.expenseId} expense={e} destinationCurrency={trip.destinationCurrency} members={trip.members} />
+            <ExpenseCard key={e.expenseId} expense={e} tripId={tripId!} destinationCurrency={trip.destinationCurrency} members={trip.members} />
           ))}
         </div>
 

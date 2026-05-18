@@ -1,6 +1,8 @@
 import uuid
 from datetime import datetime, timezone
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from app.dependencies import get_current_user
 from app.models.settlement import SettlementCreate
 from app.services.firestore import get_db, doc_to_dict
@@ -122,6 +124,68 @@ async def record_settlement(trip_id: str, body: SettlementCreate,
 
     db.collection("trips").document(trip_id).collection("settlements").document(settlement_id).set(settlement)
     return settlement
+
+
+class SettlementUpdate(BaseModel):
+    note: Optional[str] = None
+
+
+@router.get("/{trip_id}/settlements")
+async def list_settlements(trip_id: str, current_user: dict = Depends(get_current_user)):
+    db = get_db()
+    trip = _get_trip(db, trip_id)
+    require_trip_member(trip, current_user["uid"])
+
+    members = trip.get("members", [])
+    member_map = {}
+    for m in members:
+        uid = m.get("userId") or m.get("ghostId")
+        if uid:
+            member_map[uid] = m
+
+    docs = db.collection("trips").document(trip_id).collection("settlements").stream()
+    result = []
+    for doc in docs:
+        s = doc.to_dict()
+        from_m = member_map.get(s.get("fromUserId"), {})
+        to_m = member_map.get(s.get("toUserId"), {})
+        s["fromDisplayName"] = from_m.get("displayName", s.get("fromUserId", ""))
+        s["toDisplayName"] = to_m.get("displayName", s.get("toUserId", ""))
+        result.append(s)
+
+    result.sort(key=lambda x: x.get("settledAt", ""), reverse=True)
+    return result
+
+
+@router.patch("/{trip_id}/settlements/{settlement_id}")
+async def update_settlement(trip_id: str, settlement_id: str, body: SettlementUpdate,
+                            current_user: dict = Depends(get_current_user)):
+    db = get_db()
+    trip = _get_trip(db, trip_id)
+    require_trip_member(trip, current_user["uid"])
+
+    ref = db.collection("trips").document(trip_id).collection("settlements").document(settlement_id)
+    doc = ref.get()
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Settlement not found")
+
+    ref.update({"note": body.note})
+    return {"ok": True}
+
+
+@router.delete("/{trip_id}/settlements/{settlement_id}")
+async def delete_settlement(trip_id: str, settlement_id: str,
+                            current_user: dict = Depends(get_current_user)):
+    db = get_db()
+    trip = _get_trip(db, trip_id)
+    require_trip_member(trip, current_user["uid"])
+
+    ref = db.collection("trips").document(trip_id).collection("settlements").document(settlement_id)
+    if not ref.get().exists:
+        raise HTTPException(status_code=404, detail="Settlement not found")
+
+    ref.delete()
+    return {"ok": True}
 
 
 @router.get("/{trip_id}/balance")

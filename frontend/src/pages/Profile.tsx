@@ -15,6 +15,7 @@ const MAX_BYTES = 5 * 1024 * 1024;
 export default function Profile() {
   const { user, setUser } = useAppStore();
   const navigate = useNavigate();
+  const [displayName, setDisplayName] = useState(user?.displayName || '');
   const [currency, setCurrency] = useState(user?.homeCurrency || 'USD');
   const [loading, setLoading] = useState(false);
   const [photoLoading, setPhotoLoading] = useState(false);
@@ -24,8 +25,8 @@ export default function Profile() {
   async function handleSave() {
     setLoading(true);
     try {
-      await api.patch('/users/me', { homeCurrency: currency });
-      setUser({ ...user!, homeCurrency: currency });
+      await api.patch('/users/me', { displayName: displayName.trim() || undefined, homeCurrency: currency });
+      setUser({ ...user!, displayName: displayName.trim() || user!.displayName, homeCurrency: currency });
       navigate('/dashboard');
     } finally { setLoading(false); }
   }
@@ -64,18 +65,26 @@ export default function Profile() {
             disabled={photoLoading}
             title="Change photo"
           >
-            <Avatar src={user?.photoURL} name={user?.displayName || ''} size="lg" />
+            <Avatar src={user?.photoURL} name={displayName || user?.displayName || ''} size="lg" />
             <span className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white text-xs">
               {photoLoading ? '…' : 'Edit'}
             </span>
           </button>
-          <div>
-            <p className="font-semibold text-text-primary">{user?.displayName}</p>
-            <p className="text-sm text-text-secondary">{user?.email}</p>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-text-primary truncate">{displayName || user?.displayName}</p>
+            <p className="text-sm text-text-secondary truncate">{user?.email}</p>
             {photoError && <p className="text-xs text-danger mt-1">{photoError}</p>}
           </div>
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
         </div>
+
+        <Input
+          label="Display Name"
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          placeholder="Your name"
+          className="mb-4"
+        />
 
         <p className="text-sm text-text-secondary mb-3">Home Currency</p>
         <div className="grid grid-cols-5 gap-2 mb-4">

@@ -21,8 +21,10 @@ export function CategoryDonut({ data, currency, total }: CategoryDonutProps) {
             ))}
           </Pie>
           <Tooltip
-            contentStyle={{ backgroundColor: '#111827', border: '1px solid #263348', borderRadius: '0.75rem' }}
-            formatter={(value: number) => [formatCurrency(value, currency), '']}
+            contentStyle={{ backgroundColor: '#111827', border: '1px solid #263348', borderRadius: '0.75rem', color: '#F1F5F9' }}
+            labelStyle={{ color: '#94A3B8' }}
+            itemStyle={{ color: '#F1F5F9' }}
+            formatter={(value: number, name: string) => [formatCurrency(value, currency), name || null]}
           />
         </PieChart>
       </ResponsiveContainer>
