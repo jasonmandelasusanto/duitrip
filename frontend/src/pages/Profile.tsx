@@ -5,7 +5,6 @@ import { useAppStore } from '../store/useAppStore';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { Avatar } from '../components/ui/Avatar';
-import KofiWidget from '../components/ui/KofiWidget';
 import { signOut } from '../services/auth';
 import { uploadProfilePicture } from '../utils/imageUpload';
 
@@ -21,6 +20,10 @@ export default function Profile() {
   const [photoLoading, setPhotoLoading] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   async function handleSave() {
     setLoading(true);
@@ -29,6 +32,20 @@ export default function Profile() {
       setUser({ ...user!, displayName: displayName.trim() || user!.displayName, homeCurrency: currency });
       navigate('/dashboard');
     } finally { setLoading(false); }
+  }
+
+  async function handleDeleteAccount() {
+    setDeleteError(null);
+    setDeleteLoading(true);
+    try {
+      await api.delete('/users/me');
+      setUser(null);
+      navigate('/');
+    } catch {
+      setDeleteError('Failed to delete account. Please try again.');
+    } finally {
+      setDeleteLoading(false);
+    }
   }
 
   async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -53,23 +70,31 @@ export default function Profile() {
   }
 
   return (
+    <>
     <div className="min-h-screen bg-bg-base">
       <div className="max-w-lg mx-auto px-4 pt-8 pb-10">
         <button onClick={() => navigate(-1)} className="text-text-secondary text-sm mb-6">← Back</button>
         <h1 className="text-2xl font-bold text-text-primary mb-6">Profile</h1>
 
         <div className="bg-bg-surface border border-bg-border rounded-2xl p-4 mb-6 flex items-center gap-4">
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="relative group flex-shrink-0"
-            disabled={photoLoading}
-            title="Change photo"
-          >
+          <div className="relative flex-shrink-0">
             <Avatar src={user?.photoURL} name={displayName || user?.displayName || ''} size="lg" />
-            <span className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white text-xs">
-              {photoLoading ? '…' : 'Edit'}
-            </span>
-          </button>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={photoLoading}
+              title="Change photo"
+              className="absolute -bottom-1 -right-1 w-6 h-6 bg-teal rounded-full flex items-center justify-center hover:bg-teal-dark transition-colors disabled:opacity-60"
+            >
+              {photoLoading ? (
+                <div className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/>
+                  <circle cx="12" cy="13" r="3"/>
+                </svg>
+              )}
+            </button>
+          </div>
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-text-primary truncate">{displayName || user?.displayName}</p>
             <p className="text-sm text-text-secondary truncate">{user?.email}</p>
@@ -99,16 +124,57 @@ export default function Profile() {
         <Input label="Custom currency code" value={currency} onChange={(e) => setCurrency(e.target.value.toUpperCase())} maxLength={3} className="mb-6" />
 
         <Button className="w-full mb-3" onClick={handleSave} disabled={loading}>Save</Button>
-        <Button variant="danger" className="w-full mb-8" onClick={() => { signOut(); navigate('/'); }}>Sign Out</Button>
-
-        <div className="border-t border-bg-border pt-6">
-          <div className="flex items-start gap-3 mb-3">
-            <span className="text-lg">☕</span>
-            <p className="text-sm text-text-secondary leading-snug">I intend to run this for free forever — but if you'd like to leave a tip, any amount is hugely appreciated to keep the app running.</p>
-          </div>
-          <KofiWidget />
-        </div>
+        <Button variant="danger" className="w-full mb-3" onClick={() => { signOut(); navigate('/'); }}>Sign Out</Button>
+        <Button variant="ghost" className="w-full text-danger border border-danger/30 hover:bg-danger/10" onClick={() => { setShowDeleteModal(true); setDeleteConfirmText(''); setDeleteError(null); }}>
+          Delete Account
+        </Button>
       </div>
     </div>
+
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60">
+          <div className="bg-bg-surface rounded-xl w-full max-w-md border border-bg-border shadow-2xl">
+            <div className="p-5 border-b border-bg-border">
+              <h2 className="text-base font-semibold text-text-primary">Delete Account</h2>
+              <p className="text-sm text-text-secondary mt-1">
+                This permanently deletes your account and all your data. This cannot be undone.
+              </p>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs text-text-secondary mb-1.5">
+                  Type <span className="font-semibold text-text-primary">delete</span> to confirm
+                </label>
+                <input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder="delete"
+                  className="w-full bg-bg-base border border-bg-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-danger"
+                />
+              </div>
+              {deleteError && (
+                <p className="text-sm text-danger bg-danger/10 rounded-lg px-3 py-2">{deleteError}</p>
+              )}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  className="flex-1 py-2.5 rounded-lg border border-bg-border text-sm text-text-secondary hover:text-text-primary transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteAccount}
+                  disabled={deleteLoading || deleteConfirmText !== 'delete'}
+                  className="flex-1 py-2.5 rounded-lg bg-danger text-white text-sm font-semibold hover:bg-danger/90 disabled:opacity-50 transition-colors"
+                >
+                  {deleteLoading ? 'Deleting…' : 'Delete Forever'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

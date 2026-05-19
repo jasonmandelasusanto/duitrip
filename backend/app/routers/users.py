@@ -28,6 +28,16 @@ async def update_me(body: UserUpdate, current_user: dict = Depends(get_current_u
     return {"ok": True}
 
 
+@router.delete("/me")
+async def delete_me(current_user: dict = Depends(get_current_user)):
+    from firebase_admin import auth as admin_auth
+    db = get_db()
+    uid = current_user["uid"]
+    db.collection("users").document(uid).delete()
+    admin_auth.delete_user(uid)
+    return {"ok": True}
+
+
 @router.post("/me/init")
 async def init_me(
     body: UserProfile,

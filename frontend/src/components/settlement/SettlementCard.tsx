@@ -6,13 +6,33 @@ import { Button } from '../ui/Button';
 interface SettlementCardProps {
   transaction: SettlementTransaction;
   onMarkSettled?: (note: string) => Promise<void>;
+  onNudge?: () => Promise<void>;
 }
 
-export function SettlementCard({ transaction: tx, onMarkSettled }: SettlementCardProps) {
+export function SettlementCard({ transaction: tx, onMarkSettled, onNudge }: SettlementCardProps) {
   const [confirming, setConfirming] = useState(false);
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(false);
+  const [nudged, setNudged] = useState(false);
+  const [nudging, setNudging] = useState(false);
   const isGhostTx = tx.from.isGhost || tx.to.isGhost;
+
+  async function handleNudge() {
+    if (!onNudge) return;
+    setNudging(true);
+    try {
+      await onNudge();
+      setNudged(true);
+      setTimeout(() => setNudged(false), 3000);
+    } catch (err: unknown) {
+      const msg = err && typeof err === 'object' && 'response' in err
+        ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+        : null;
+      alert(msg || 'Could not send nudge');
+    } finally {
+      setNudging(false);
+    }
+  }
 
   async function handleConfirm() {
     if (!onMarkSettled) return;
@@ -47,11 +67,22 @@ export function SettlementCard({ transaction: tx, onMarkSettled }: SettlementCar
             <p className="text-xs text-warning mt-1">⚠️ Collect offline</p>
           )}
         </div>
-        {onMarkSettled && !confirming && (
-          <Button size="sm" onClick={() => setConfirming(true)}>
-            Mark settled
-          </Button>
-        )}
+        <div className="flex flex-col gap-1.5 shrink-0">
+          {onNudge && !isGhostTx && !confirming && (
+            <button
+              onClick={handleNudge}
+              disabled={nudging || nudged}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-bg-border text-xs text-text-secondary hover:border-teal/50 hover:text-teal transition-colors disabled:opacity-60"
+            >
+              {nudged ? '✓ Sent' : nudging ? '…' : '🔔 Nudge'}
+            </button>
+          )}
+          {onMarkSettled && !confirming && (
+            <Button size="sm" onClick={() => setConfirming(true)}>
+              Mark settled
+            </Button>
+          )}
+        </div>
       </div>
 
       {confirming && (

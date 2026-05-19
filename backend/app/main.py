@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 
 from app.config import settings
-from app.routers import users, trips, members, expenses, settlements, analytics, exchange_rates, categories
+from app.routers import users, trips, members, expenses, settlements, analytics, exchange_rates, categories, notifications
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +53,7 @@ app.include_router(settlements.router, prefix="/api/trips", tags=["settlements"]
 app.include_router(analytics.router, prefix="/api/trips", tags=["analytics"])
 app.include_router(exchange_rates.router, prefix="/api/exchange-rates", tags=["exchange-rates"])
 app.include_router(categories.router, prefix="/api/trips", tags=["categories"])
+app.include_router(notifications.router, prefix="/api/notifications", tags=["notifications"])
 
 
 @app.get("/health")

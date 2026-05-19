@@ -4,6 +4,7 @@ import api from '../services/api';
 import type { Trip } from '../types';
 import { TripCard } from '../components/trip/TripCard';
 import { Button } from '../components/ui/Button';
+import { NotificationBell } from '../components/ui/NotificationBell';
 import { signOut } from '../services/auth';
 import { useAppStore } from '../store/useAppStore';
 import KofiWidget from '../components/ui/KofiWidget';
@@ -26,7 +27,8 @@ export default function Dashboard() {
             <h1 className="text-2xl font-bold text-text-primary">My Trips</h1>
             <p className="text-sm text-text-secondary">{user?.displayName} · {user?.homeCurrency}</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-1">
+            <NotificationBell />
             <Link to="/profile">
               <Button variant="ghost" size="sm">Profile</Button>
             </Link>

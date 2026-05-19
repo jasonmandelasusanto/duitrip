@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from app.dependencies import get_current_user
 from app.models.trip import TripCreate, TripUpdate
+from app.models.notification import NudgeRequest
 from app.services.firestore import get_db, doc_to_dict
 from app.utils.country_currency import country_code_to_currency
 from app.utils.validators import require_trip_member, require_trip_owner
@@ -123,4 +124,51 @@ async def delete_trip(trip_id: str, current_user: dict = Depends(get_current_use
         raise HTTPException(status_code=404, detail="Trip not found")
     require_trip_owner(data, current_user["uid"])
     db.collection("trips").document(trip_id).update({"status": "archived"})
+    return {"ok": True}
+
+
+@router.post("/{trip_id}/nudge")
+async def nudge_member(trip_id: str, body: NudgeRequest, current_user: dict = Depends(get_current_user)):
+    db = get_db()
+    doc = db.collection("trips").document(trip_id).get()
+    data = doc_to_dict(doc)
+    if not data:
+        raise HTTPException(status_code=404, detail="Trip not found")
+
+    members = data.get("members", [])
+    sender = next((m for m in members if m.get("userId") == current_user["uid"]), None)
+    if not sender:
+        raise HTTPException(status_code=403, detail="Not a trip member")
+
+    recipient = next((m for m in members if m.get("userId") == body.toUserId and m.get("role") != "ghost"), None)
+    if not recipient:
+        raise HTTPException(status_code=404, detail="Recipient not found")
+    if body.toUserId == current_user["uid"]:
+        raise HTTPException(status_code=400, detail="Cannot nudge yourself")
+
+    # One nudge per sender-recipient-trip per hour
+    recent = list(db.collection("notifications")
+        .where("toUserId", "==", body.toUserId)
+        .where("fromUid", "==", current_user["uid"])
+        .where("tripId", "==", trip_id)
+        .stream())
+    from datetime import timedelta
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+    if any(n.to_dict().get("createdAt", "") > cutoff for n in recent):
+        raise HTTPException(status_code=429, detail="Already nudged recently — wait an hour")
+
+    notif_id = f"notif_{uuid.uuid4().hex[:12]}"
+    sender_name = sender.get("displayName") or current_user.get("name", "Someone")
+    db.collection("notifications").document(notif_id).set({
+        "notifId": notif_id,
+        "toUserId": body.toUserId,
+        "fromUid": current_user["uid"],
+        "fromName": sender_name,
+        "tripId": trip_id,
+        "tripName": data.get("name", ""),
+        "amount": body.amount,
+        "currency": body.currency,
+        "read": False,
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+    })
     return {"ok": True}

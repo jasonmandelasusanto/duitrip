@@ -5,6 +5,7 @@ import api from '../services/api';
 import { TripHeader } from '../components/trip/TripHeader';
 import { SettlementCard } from '../components/settlement/SettlementCard';
 import { formatCurrency } from '../utils/currency';
+import { useAppStore } from '../store/useAppStore';
 import type { Settlement, SettlementTransaction } from '../types';
 
 function formatSettledAt(iso: string) {
@@ -17,6 +18,7 @@ export default function Settlement() {
   const { tripId } = useParams<{ tripId: string }>();
   const { trip } = useTrip(tripId);
   const navigate = useNavigate();
+  const { user } = useAppStore();
   const [data, setData] = useState<{ transactions: SettlementTransaction[]; ratesNote: string } | null>(null);
   const [history, setHistory] = useState<Settlement[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -59,6 +61,15 @@ export default function Settlement() {
     await api.patch(`/trips/${tripId}/settlements/${settlementId}`, { note: editNote.trim() || null });
     setEditingId(null);
     loadHistory();
+  }
+
+  async function nudgeMember(tx: SettlementTransaction) {
+    if (!tripId) return;
+    await api.post(`/trips/${tripId}/nudge`, {
+      toUserId: tx.from.userId,
+      amount: tx.amountInDestinationCurrency,
+      currency: tx.destinationCurrency,
+    });
   }
 
   async function deleteSettlement(settlementId: string) {
@@ -113,7 +124,12 @@ export default function Settlement() {
         ) : (
           <div className="flex flex-col gap-3 mb-6">
             {data.transactions.map((tx, i) => (
-              <SettlementCard key={i} transaction={tx} onMarkSettled={(note) => markSettled(tx, note)} />
+              <SettlementCard
+                key={i}
+                transaction={tx}
+                onMarkSettled={(note) => markSettled(tx, note)}
+                onNudge={!tx.from.isGhost && tx.from.userId !== user?.uid ? () => nudgeMember(tx) : undefined}
+              />
             ))}
           </div>
         )}

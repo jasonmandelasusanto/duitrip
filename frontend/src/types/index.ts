@@ -120,6 +120,19 @@ export interface BalanceMember {
   status: 'outstanding' | 'settled';
 }
 
+export interface Notification {
+  notifId: string;
+  toUserId: string;
+  fromUid: string;
+  fromName: string;
+  tripId: string;
+  tripName: string;
+  amount: number;
+  currency: string;
+  read: boolean;
+  createdAt: string;
+}
+
 export const DEFAULT_CATEGORIES = [
   { name: 'Flight', emoji: '✈️' },
   { name: 'Accommodation', emoji: '🏨' },
