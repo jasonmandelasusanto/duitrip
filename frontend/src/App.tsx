@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { useAppStore } from './store/useAppStore';
@@ -15,9 +14,14 @@ import Members from './pages/Members';
 import InviteAccept from './pages/InviteAccept';
 import Profile from './pages/Profile';
 
+function AuthInit() {
+  useAuth();
+  return null;
+}
+
 function RequireAuth({ children }: { children: JSX.Element }) {
-  const { user, loading } = useAuth();
-  if (loading) return <div className="min-h-screen bg-bg-base flex items-center justify-center text-text-muted">Loading…</div>;
+  const { user, authLoading } = useAppStore();
+  if (authLoading) return <div className="min-h-screen bg-bg-base flex items-center justify-center text-text-muted">Loading…</div>;
   if (!user) return <Navigate to="/" replace />;
   if (!user.homeCurrency || user.homeCurrency === '') return <Navigate to="/onboarding" replace />;
   return children;
@@ -26,6 +30,7 @@ function RequireAuth({ children }: { children: JSX.Element }) {
 export default function App() {
   return (
     <BrowserRouter>
+      <AuthInit />
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/onboarding" element={<Onboarding />} />

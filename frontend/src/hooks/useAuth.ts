@@ -1,12 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '../services/firebase';
 import api from '../services/api';
 import { useAppStore } from '../store/useAppStore';
 
 export function useAuth() {
-  const { user, setUser } = useAppStore();
-  const [loading, setLoading] = useState(true);
+  const { setUser, setAuthLoading } = useAppStore();
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (fbUser: FirebaseUser | null) => {
@@ -26,10 +25,8 @@ export function useAuth() {
       } else {
         setUser(null);
       }
-      setLoading(false);
+      setAuthLoading(false);
     });
     return unsub;
-  }, [setUser]);
-
-  return { user, loading };
+  }, [setUser, setAuthLoading]);
 }

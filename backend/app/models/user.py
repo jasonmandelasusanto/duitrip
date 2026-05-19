@@ -5,7 +5,7 @@ from typing import Optional
 class UserProfile(BaseModel):
     uid: str
     email: str
-    displayName: str
+    displayName: Optional[str] = None
     photoURL: Optional[str] = None
     homeCurrency: str = "USD"
 

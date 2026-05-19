@@ -16,9 +16,14 @@ export default function Onboarding() {
   const [currency, setCurrency] = useState('USD');
   const [loading, setLoading] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileKey, setTurnstileKey] = useState(0);
 
   const captchaRequired = !!TURNSTILE_SITE_KEY;
   const handleTurnstileSuccess = useCallback((token: string) => setTurnstileToken(token), []);
+  const handleTurnstileError = useCallback(() => {
+    setTurnstileToken(null);
+    setTimeout(() => setTurnstileKey((k) => k + 1), 1500);
+  }, []);
 
   async function handleSave() {
     setLoading(true);
@@ -63,7 +68,14 @@ export default function Onboarding() {
 
         {captchaRequired && (
           <div className="flex justify-center mb-4">
-            <Turnstile siteKey={TURNSTILE_SITE_KEY} onSuccess={handleTurnstileSuccess} />
+            <Turnstile
+              key={turnstileKey}
+              siteKey={TURNSTILE_SITE_KEY}
+              onSuccess={handleTurnstileSuccess}
+              onExpire={() => setTurnstileToken(null)}
+              onError={handleTurnstileError}
+              options={{ theme: 'dark' }}
+            />
           </div>
         )}
 

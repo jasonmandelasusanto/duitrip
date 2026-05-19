@@ -18,6 +18,7 @@ export default function Landing() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileKey, setTurnstileKey] = useState(0);
 
   const captchaRequired = !!TURNSTILE_SITE_KEY;
   const canSubmit = !loading && (!captchaRequired || !!turnstileToken);
@@ -123,9 +124,11 @@ export default function Landing() {
             {captchaRequired && (
               <div className="flex justify-center pt-1">
                 <Turnstile
+                  key={turnstileKey}
                   siteKey={TURNSTILE_SITE_KEY}
                   onSuccess={(t) => setTurnstileToken(t)}
                   onExpire={() => setTurnstileToken(null)}
+                  onError={() => { setTurnstileToken(null); setTimeout(() => setTurnstileKey((k) => k + 1), 1500); }}
                   options={{ theme: 'dark' }}
                 />
               </div>
