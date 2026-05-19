@@ -24,16 +24,16 @@ export default function AddExpense() {
   const [category, setCategory] = useState('Food & Drink');
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState('');
-  const [paidBy, setPaidBy] = useState('');
+  const [paidBy, setPaidBy] = useState(user?.uid || '');
   const [splitMode, setSplitMode] = useState<SplitMode>('equal');
   const [percentages, setPercentages] = useState<Record<string, string>>({});
   const [exactAmounts, setExactAmounts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<number | null>(null);
 
-  // Seed form when editing
+  // Seed form when editing — deps exclude `trip` to avoid re-running on every Firestore snapshot
   useEffect(() => {
-    if (!isEdit || !trip || !expenseId) return;
+    if (!isEdit || !tripId || !expenseId) return;
     api.get(`/trips/${tripId}/expenses/${expenseId}`).then((r) => {
       const e = r.data;
       setDescription(e.description);
@@ -56,14 +56,13 @@ export default function AddExpense() {
         setExactAmounts(ex);
       }
     }).catch(console.error);
-  }, [isEdit, expenseId, tripId, trip]);
+  }, [isEdit, expenseId, tripId]);
 
   useEffect(() => {
     if (trip && !isEdit) {
       setCurrency(trip.destinationCurrency);
-      setPaidBy(user?.uid || '');
     }
-  }, [trip, user, isEdit]);
+  }, [trip, isEdit]);
 
   useEffect(() => {
     if (trip && currency && currency !== trip.destinationCurrency) {

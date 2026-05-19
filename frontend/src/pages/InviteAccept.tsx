@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, Navigate } from 'react-router-dom';
 import api from '../services/api';
 import { useAppStore } from '../store/useAppStore';
 import { Button } from '../components/ui/Button';
@@ -24,11 +24,7 @@ export default function InviteAccept() {
     }
   }
 
-  if (!user) return (
-    <div className="min-h-screen bg-bg-base flex items-center justify-center p-6">
-      <p className="text-text-muted">Please sign in to accept this invite.</p>
-    </div>
-  );
+  if (!user) return <Navigate to="/" replace />;
 
   return (
     <div className="min-h-screen bg-bg-base flex items-center justify-center p-6">

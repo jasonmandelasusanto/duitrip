@@ -20,7 +20,7 @@ export default function TripDetail() {
   useEffect(() => {
     if (!tripId) return;
     api.get(`/trips/${tripId}/balance`).then((r) => setBalance(r.data)).catch(console.error);
-  }, [tripId, expenses.length]);
+  }, [tripId, expenses]);
 
   if (loading || !trip) return <div className="min-h-screen bg-bg-base flex items-center justify-center text-text-muted">Loading…</div>;
 
