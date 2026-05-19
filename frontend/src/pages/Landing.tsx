@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signInWithGoogle, signInWithEmailPassword, registerWithEmailPassword, friendlyAuthError } from '../services/auth';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Turnstile } from '@marsidev/react-turnstile';
+import { useAppStore } from '../store/useAppStore';
 
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
 
@@ -11,6 +12,21 @@ type Tab = 'signin' | 'register';
 
 export default function Landing() {
   const navigate = useNavigate();
+  const { user, authLoading } = useAppStore();
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [user, authLoading, navigate]);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-bg-base flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-teal border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
   const [tab, setTab] = useState<Tab>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

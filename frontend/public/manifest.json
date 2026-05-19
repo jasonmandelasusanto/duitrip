@@ -2,7 +2,7 @@
   "name": "Duitrip",
   "short_name": "Duitrip",
   "description": "Track shared trip expenses with multi-currency support",
-  "start_url": "/",
+  "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#0f1117",
   "theme_color": "#4DC3EA",
