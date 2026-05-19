@@ -4,7 +4,7 @@ import api from '../services/api';
 import { useAppStore } from '../store/useAppStore';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
-import { Turnstile } from '../components/ui/Turnstile';
+import { Turnstile } from '@marsidev/react-turnstile';
 
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
 
