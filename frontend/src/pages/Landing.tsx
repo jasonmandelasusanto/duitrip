@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { signInWithGoogle, signInWithEmailPassword, registerWithEmailPassword, friendlyAuthError } from '../services/auth';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { Turnstile } from '../components/ui/Turnstile';
+import { Turnstile } from '@marsidev/react-turnstile';
 
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
 
@@ -125,7 +125,8 @@ export default function Landing() {
                 <Turnstile
                   siteKey={TURNSTILE_SITE_KEY}
                   onSuccess={(t) => setTurnstileToken(t)}
-                  onExpired={() => setTurnstileToken(null)}
+                  onExpire={() => setTurnstileToken(null)}
+                  options={{ theme: 'dark' }}
                 />
               </div>
             )}
