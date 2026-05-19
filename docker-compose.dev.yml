@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   firebase-emulator:
     build:
@@ -8,13 +6,13 @@ services:
     working_dir: /app
     volumes:
       - ./firebase:/app
-      - firebase_data:/app/.emulator-data
     ports:
       - "4000:4000"
       - "8080:8080"
       - "9099:9099"
     environment:
       - FIREBASE_PROJECT_ID=demo-duitrip
+    stop_grace_period: 60s
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:4000"]
       interval: 15s
@@ -52,6 +50,3 @@ services:
       - ./frontend/.env.local
     depends_on:
       - backend
-
-volumes:
-  firebase_data:
