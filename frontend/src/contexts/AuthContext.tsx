@@ -1,14 +1,16 @@
-import { useEffect } from 'react';
-import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
+import { createContext, useContext, useEffect, type ReactNode } from 'react';
+import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../services/firebase';
 import api from '../services/api';
 import { useAppStore } from '../store/useAppStore';
 
-export function useAuth() {
+const AuthContext = createContext<null>(null);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
   const { setUser, setAuthLoading } = useAppStore();
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (fbUser: FirebaseUser | null) => {
+    const unsub = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
         try {
           const res = await api.get('/users/me');
@@ -28,5 +30,11 @@ export function useAuth() {
       setAuthLoading(false);
     });
     return unsub;
-  }, [setUser, setAuthLoading]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return <AuthContext.Provider value={null}>{children}</AuthContext.Provider>;
+}
+
+export function useAuthContext() {
+  return useContext(AuthContext);
 }
