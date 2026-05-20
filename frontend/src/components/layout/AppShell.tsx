@@ -34,7 +34,7 @@ export function AppShell({ children }: AppShellProps) {
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           <p className="text-xs font-semibold text-text-muted uppercase tracking-wider px-2 mb-2">My Trips</p>
           <div className="flex flex-col gap-0.5">
-            {trips.map((t) => {
+            {[...trips].sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime()).map((t) => {
               const flag = currencyFlag(t.destinationCurrency);
               const isActive = t.tripId === tripId;
               return (
