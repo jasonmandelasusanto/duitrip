@@ -22,7 +22,7 @@ export default function AddExpense() {
   const { user } = useAppStore();
   const navigate = useNavigate();
   const { rates, fetchRates } = useExchangeRates();
-  const { enqueue, pending } = usePendingExpenses(tripId);
+  const { enqueue } = usePendingExpenses(tripId);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Pre-fill state (from duplicate via location.state)

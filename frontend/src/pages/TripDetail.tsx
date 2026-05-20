@@ -117,7 +117,7 @@ export default function TripDetail() {
     if (trip?.budget && trip.budgetCurrency && trip.budgetCurrency !== trip.destinationCurrency) {
       fetchRates(trip.destinationCurrency, [trip.budgetCurrency]);
     }
-  }, [trip?.budgetCurrency, trip?.destinationCurrency, fetchRates]);
+  }, [trip?.budget, trip?.budgetCurrency, trip?.destinationCurrency, fetchRates]);
 
   // Budget converted to destination currency for progress bar
   const budgetInDestCurrency = useMemo(() => {

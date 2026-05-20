@@ -14,14 +14,6 @@ import Members from './pages/Members';
 import InviteAccept from './pages/InviteAccept';
 import Profile from './pages/Profile';
 
-function RequireAuth({ children }: { children: JSX.Element }) {
-  const { user, authLoading } = useAppStore();
-  if (authLoading) return <div className="min-h-screen bg-bg-base flex items-center justify-center"><div className="w-8 h-8 border-2 border-teal border-t-transparent rounded-full animate-spin" /></div>;
-  if (!user) return <Navigate to="/" replace />;
-  if (!user.homeCurrency || user.homeCurrency === '') return <Navigate to="/onboarding" replace />;
-  return children;
-}
-
 function AuthLayout() {
   const { user, authLoading } = useAppStore();
   if (authLoading) return <div className="min-h-screen bg-bg-base flex items-center justify-center"><div className="w-8 h-8 border-2 border-teal border-t-transparent rounded-full animate-spin" /></div>;
