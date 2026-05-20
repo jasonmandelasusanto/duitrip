@@ -13,6 +13,14 @@ type Tab = 'signin' | 'register';
 export default function Landing() {
   const navigate = useNavigate();
   const { user, authLoading } = useAppStore();
+  const [tab, setTab] = useState<Tab>('signin');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileKey, setTurnstileKey] = useState(0);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -27,14 +35,6 @@ export default function Landing() {
       </div>
     );
   }
-  const [tab, setTab] = useState<Tab>('signin');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
-  const [turnstileKey, setTurnstileKey] = useState(0);
 
   const captchaRequired = !!TURNSTILE_SITE_KEY;
   const canSubmit = !loading && (!captchaRequired || !!turnstileToken);

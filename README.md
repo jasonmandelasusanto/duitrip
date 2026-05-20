@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="frontend/public/logo.png" alt="Duitrip" width="120" />
+</p>
+
 # Duitrip ✈️
 
 Multi-currency trip expense tracker. Split costs across currencies with exchange rates locked at the moment of recording, so totals never drift after the fact.
@@ -8,12 +12,14 @@ Multi-currency trip expense tracker. Split costs across currencies with exchange
 - **Ghost members** — add people who don't have an account yet; promote them later when they join
 - **Debt simplification** — greedy algorithm minimises the number of settlement transactions
 - **Settlement history** — record settlements with optional notes; edit or delete past records
+- **Nudge notifications** — send an in-app reminder to a member to settle up (1-hour cooldown per sender/recipient/trip)
 - **Analytics** — spending by category, by day, by member, personal vs group average
 - **Expense management** — creator can edit or delete their own expenses (owners can edit any)
 - **Member management** — trip owner can invite, remove members, and promote ghost members
 - **Country flag emoji** — automatically shown next to trip titles based on destination currency
 - **Profile pictures** — client-side canvas crop (128×128 JPEG) stored as base64 in Firestore
-- **PWA** — installable, works offline for reads
+- **Account deletion** — permanent self-service deletion with "type delete to confirm" guard
+- **PWA** — installable, persistent login across browser/app closes, works offline for reads
 - **Cloudflare Turnstile** — optional CAPTCHA on sign-up/onboarding (skipped when site key is empty)
 - **Email/password + Google sign-in** via Firebase Auth
 
@@ -29,7 +35,7 @@ Multi-currency trip expense tracker. Split costs across currencies with exchange
 | Auth | Firebase Auth (email/password + Google OAuth) |
 | Exchange rates | [frankfurter.app](https://www.frankfurter.app/) — 1-hour in-memory cache |
 | Local dev | Docker Compose + Firebase Emulator Suite |
-| CI | GitHub Actions (lint → type-check → Docker build) |
+| CI | GitHub Actions (lint → type-check) |
 | Deploy | Google Cloud Run (single container) via Cloud Build |
 
 ## Local Development
@@ -53,13 +59,15 @@ docker compose -f docker-compose.dev.yml up --build
 
 ### Seed test data
 
+The emulator automatically imports seed data from `firebase/.emulator-data` on startup and exports it on graceful shutdown, so data persists across restarts.
+
+To re-seed from scratch:
+
 ```bash
-cd firebase
-npm install
-FIRESTORE_EMULATOR_HOST=localhost:8080 FIREBASE_AUTH_EMULATOR_HOST=localhost:9099 node seed.js
+node firebase/seed.js
 ```
 
-### Test accounts (after seeding)
+### Test accounts
 
 | Name | Email | Password | Home currency |
 |------|-------|----------|---------------|
@@ -106,7 +114,8 @@ duitrip/
 │   ├── src/
 │   │   ├── pages/              # Route-level components
 │   │   ├── components/         # Shared UI + feature components
-│   │   ├── hooks/              # useAuth, useTrip, useExpenses, useExchangeRates
+│   │   ├── contexts/           # AuthContext (Firebase auth listener)
+│   │   ├── hooks/              # useTrip, useExpenses, useExchangeRates
 │   │   ├── services/           # Firebase, Axios API client, auth helpers
 │   │   ├── store/              # Zustand app store
 │   │   ├── utils/              # Currency formatting, date helpers, image upload
@@ -115,7 +124,7 @@ duitrip/
 │
 ├── backend/
 │   ├── app/
-│   │   ├── routers/            # FastAPI routers (users, trips, expenses, …)
+│   │   ├── routers/            # FastAPI routers (users, trips, expenses, notifications, …)
 │   │   ├── models/             # Pydantic request/response models
 │   │   ├── services/           # Firestore, exchange rates, settlement, Turnstile
 │   │   └── main.py             # App entrypoint; serves SPA static files in prod
@@ -125,7 +134,8 @@ duitrip/
     ├── Dockerfile.emulator     # Firebase Emulator (Java 21 + Node 20)
     ├── firebase.json
     ├── firestore.rules
-    └── seed.js                 # Creates test users, trip, and expenses
+    ├── seed.js                 # Creates test users, trip, and expenses
+    └── .emulator-data/         # Persisted emulator state (auto-exported on stop)
 ```
 
 ## API
@@ -154,10 +164,15 @@ All endpoints are prefixed with `/api`. Auth requires a Firebase ID token in the
 | PATCH | `/api/trips/:id/members/ghost/:gid` | Update a ghost member's name/currency |
 | POST | `/api/trips/:id/members/ghost/:gid/promote` | Send invite to promote ghost to real member |
 | DELETE | `/api/trips/:id/members/:mid` | Remove a member (owner only) |
+| POST | `/api/trips/:id/nudge` | Send a settlement reminder notification (1-hour cooldown) |
 | GET | `/api/exchange-rates/:from/:to` | Spot rate (cached 1 h) |
 | GET | `/api/users/me` | Current user profile |
 | PATCH | `/api/users/me` | Update display name, home currency, or photo |
 | POST | `/api/users/me/init` | Onboarding (sets home currency, verifies Turnstile) |
+| DELETE | `/api/users/me` | Permanently delete account and Firebase Auth user |
+| GET | `/api/notifications` | List in-app notifications for current user |
+| POST | `/api/notifications/read-all` | Mark all notifications as read |
+| DELETE | `/api/notifications/:id` | Dismiss a notification |
 | GET | `/health` | Health check (no auth) |
 
 Interactive docs: http://localhost:8001/api/docs
