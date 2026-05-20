@@ -62,7 +62,10 @@ export default function Dashboard() {
               <div className="bg-bg-surface border border-bg-border rounded-xl p-3">
                 <p className="text-xs text-text-muted">Total members</p>
                 <p className="text-2xl font-bold text-text-primary mt-0.5">
-                  {new Set(trips.flatMap((t) => t.members.map((m) => m.userId || m.ghostId))).size}
+                  {new Set([
+                    ...trips.flatMap((t) => t.members.filter((m) => m.role !== 'ghost' && m.userId).map((m) => `u:${m.userId}`)),
+                    ...trips.flatMap((t) => t.members.filter((m) => m.role === 'ghost').map((m) => `g:${m.displayName.trim().toLowerCase()}`)),
+                  ]).size}
                 </p>
               </div>
               <div className="bg-bg-surface border border-bg-border rounded-xl p-3">
