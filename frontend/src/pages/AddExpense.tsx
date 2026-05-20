@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useTrip } from '../hooks/useTrip';
+import { usePendingExpenses } from '../hooks/usePendingExpenses';
 import api from '../services/api';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
@@ -9,27 +10,57 @@ import { DEFAULT_CATEGORIES } from '../types';
 import { formatCurrency } from '../utils/currency';
 import { useExchangeRates } from '../hooks/useExchangeRates';
 import { useAppStore } from '../store/useAppStore';
+import { compressImage } from '../utils/imageCompress';
 
 type SplitMode = 'equal' | 'percentage' | 'exact';
 
 export default function AddExpense() {
   const { tripId, expenseId } = useParams<{ tripId: string; expenseId?: string }>();
+  const location = useLocation();
   const isEdit = !!expenseId;
   const { trip } = useTrip(tripId);
   const { user } = useAppStore();
   const navigate = useNavigate();
   const { rates, fetchRates } = useExchangeRates();
+  const { enqueue, pending } = usePendingExpenses(tripId);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('Food & Drink');
-  const [amount, setAmount] = useState('');
-  const [currency, setCurrency] = useState('');
+  // Pre-fill state (from duplicate via location.state)
+  const prefill = (location.state as Record<string, unknown> | null) ?? {};
+
+  const [description, setDescription] = useState((prefill.description as string) || '');
+  const [category, setCategory] = useState((prefill.category as string) || 'Food & Drink');
+  const [amount, setAmount] = useState((prefill.amount as string) || '');
+  const [currency, setCurrency] = useState((prefill.currency as string) || '');
   const [paidBy, setPaidBy] = useState(user?.uid || '');
-  const [splitMode, setSplitMode] = useState<SplitMode>('equal');
+  const [notes, setNotes] = useState((prefill.notes as string) || '');
+  const [splitMode, setSplitMode] = useState<SplitMode>((prefill.splitMode as SplitMode) || 'equal');
   const [percentages, setPercentages] = useState<Record<string, string>>({});
   const [exactAmounts, setExactAmounts] = useState<Record<string, string>>({});
+  const [expenseDate, setExpenseDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<number | null>(null);
+  const [receiptDataUrl, setReceiptDataUrl] = useState<string | null>(null);
+  const [receiptLoading, setReceiptLoading] = useState(false);
+  const [customRateEnabled, setCustomRateEnabled] = useState(false);
+  const [customRate, setCustomRate] = useState('');
+  const [offline, setOffline] = useState(!navigator.onLine);
+
+  useEffect(() => {
+    const up = () => setOffline(false);
+    const down = () => setOffline(true);
+    window.addEventListener('online', up);
+    window.addEventListener('offline', down);
+    return () => { window.removeEventListener('online', up); window.removeEventListener('offline', down); };
+  }, []);
+
+  async function handleReceiptChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setReceiptLoading(true);
+    try { setReceiptDataUrl(await compressImage(file)); } finally { setReceiptLoading(false); }
+    e.target.value = '';
+  }
 
   // Seed form when editing — deps exclude `trip` to avoid re-running on every Firestore snapshot
   useEffect(() => {
@@ -41,7 +72,9 @@ export default function AddExpense() {
       setAmount(String(e.originalAmount));
       setCurrency(e.originalCurrency);
       setPaidBy(e.paidBy);
+      setNotes(e.notes || '');
       setSplitMode(e.splitMode);
+      if (e.receiptUrl) setReceiptDataUrl(e.receiptUrl);
       if (e.splitMode === 'percentage') {
         const pct: Record<string, string> = {};
         e.splits.forEach((s: { userId: string; percentage?: number }) => {
@@ -82,10 +115,14 @@ export default function AddExpense() {
   }, [amount, currency, rates, trip]);
 
   const members = trip?.members || [];
-  const currencyOptions = [
+  const currencyOptions = [...new Set([
     trip?.destinationCurrency || 'USD',
-    ...members.map((m) => m.homeCurrency).filter(Boolean) as string[],
-  ];
+    // Use current profile homeCurrency for self; trip member record may be stale
+    ...members.map((m) => {
+      const uid = m.userId || m.ghostId;
+      return uid === user?.uid ? (user?.homeCurrency || m.homeCurrency) : m.homeCurrency;
+    }).filter(Boolean) as string[],
+  ])];
   const allCategories = [
     ...DEFAULT_CATEGORIES,
     ...(trip?.customCategories || []).map((c) => ({ name: c.name, emoji: c.emoji })),
@@ -122,7 +159,17 @@ export default function AddExpense() {
         paidBy,
         splitMode,
         splits,
+        notes: notes.trim() || null,
+        receiptUrl: receiptDataUrl || null,
+        customRate: customRateEnabled && customRate ? parseFloat(customRate) : null,
+        expenseDate,
       };
+
+      if (offline && !isEdit) {
+        enqueue(payload as Record<string, unknown>, description);
+        navigate(`/trips/${tripId}`);
+        return;
+      }
 
       if (isEdit && expenseId) {
         await api.patch(`/trips/${tripId}/expenses/${expenseId}`, payload);
@@ -142,12 +189,14 @@ export default function AddExpense() {
 
   return (
     <div className="min-h-screen bg-bg-base">
-      <div className="max-w-lg mx-auto px-4 pt-6 pb-10">
+      <div className="max-w-2xl mx-auto px-4 pt-6 pb-10">
         <button onClick={() => navigate(-1)} className="text-text-secondary text-sm mb-4 hover:text-text-primary">← Back</button>
         <h1 className="text-2xl font-bold text-text-primary mb-6">{isEdit ? 'Edit Expense' : 'Add Expense'}</h1>
 
         <div className="flex flex-col gap-4">
           <Input label="Description" placeholder="Dinner at Jimbaran" value={description} onChange={(e) => setDescription(e.target.value)} />
+
+          <Input label="Date" type="date" value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} />
 
           <div>
             <label className="text-sm text-text-secondary block mb-2">Category</label>
@@ -197,6 +246,59 @@ export default function AddExpense() {
                 return <option key={uid} value={uid}>{m.displayName}{m.role === 'ghost' ? ' 👻' : ''}</option>;
               })}
             </select>
+          </div>
+
+          {/* Custom rate */}
+          {currency !== (trip?.destinationCurrency || '') && (
+            <div>
+              <label className="flex items-center gap-2 text-sm text-text-secondary mb-2 cursor-pointer select-none">
+                <input type="checkbox" checked={customRateEnabled} onChange={(e) => setCustomRateEnabled(e.target.checked)}
+                  className="accent-teal" />
+                Use custom exchange rate
+              </label>
+              {customRateEnabled && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-text-muted">1 {currency} =</span>
+                  <input
+                    type="number"
+                    placeholder="e.g. 15800"
+                    value={customRate}
+                    onChange={(e) => setCustomRate(e.target.value)}
+                    className="flex-1 bg-bg-elevated border border-bg-border rounded-xl px-3 py-2 text-sm text-amber font-mono focus:outline-none focus:border-teal"
+                  />
+                  <span className="text-xs text-text-muted">{trip?.destinationCurrency}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Receipt */}
+          <div>
+            <label className="text-sm text-text-secondary block mb-1">Receipt <span className="text-text-muted">(optional)</span></label>
+            {receiptDataUrl ? (
+              <div className="relative inline-block">
+                <img src={receiptDataUrl} alt="Receipt" className="h-28 rounded-xl object-cover border border-bg-border" />
+                <button onClick={() => setReceiptDataUrl(null)}
+                  className="absolute top-1 right-1 bg-bg-base/80 text-danger rounded-full w-5 h-5 flex items-center justify-center text-xs leading-none">✕</button>
+              </div>
+            ) : (
+              <button onClick={() => fileInputRef.current?.click()} disabled={receiptLoading}
+                className="flex items-center gap-2 px-4 py-2 border border-dashed border-bg-border rounded-xl text-sm text-text-muted hover:border-teal/50 transition-colors disabled:opacity-50">
+                {receiptLoading ? 'Compressing…' : '📷 Attach receipt'}
+              </button>
+            )}
+            <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleReceiptChange} />
+          </div>
+
+          <div>
+            <label className="text-sm text-text-secondary block mb-1">Notes <span className="text-text-muted">(optional)</span></label>
+            <textarea
+              placeholder="Any extra details…"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+              className="w-full bg-bg-elevated border border-bg-border rounded-xl px-3 py-2 text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-teal transition-colors resize-none"
+            />
           </div>
 
           <div>

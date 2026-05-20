@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
@@ -5,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from app.dependencies import get_current_user
 from app.models.settlement import SettlementCreate
-from app.services.firestore import get_db, doc_to_dict
+from app.services.firestore import get_db, doc_to_dict, stream_docs
 from app.services.settlement import calculate_balances, simplify_debts
 from app.services import exchange_rates as fx_service
 from app.utils.validators import require_trip_member
@@ -27,10 +28,10 @@ async def get_settlement(trip_id: str, current_user: dict = Depends(get_current_
     trip = _get_trip(db, trip_id)
     require_trip_member(trip, current_user["uid"])
 
-    expenses = [doc.to_dict() for doc in
-                db.collection("trips").document(trip_id).collection("expenses").stream()]
-    settlements_raw = [doc.to_dict() for doc in
-                       db.collection("trips").document(trip_id).collection("settlements").stream()]
+    expenses, settlements_raw = await asyncio.gather(
+        stream_docs(db.collection("trips").document(trip_id).collection("expenses")),
+        stream_docs(db.collection("trips").document(trip_id).collection("settlements")),
+    )
 
     balances = calculate_balances(expenses, settlements_raw)
     transactions = simplify_debts(balances)
@@ -89,7 +90,7 @@ async def get_settlement(trip_id: str, current_user: dict = Depends(get_current_
 
     return {
         "calculatedAt": now.isoformat(),
-        "ratesNote": f"Settlement amounts in live rates as of {now.isoformat()}",
+        "ratesNote": f"Amounts in {dest_currency} reflect rates locked at time of each expense. Home currency equivalents (≈) use today's live rates.",
         "stale": fx_service.is_stale(dest_currency, home_currencies),
         "transactions": tx_result,
         "summary": {
@@ -193,10 +194,10 @@ async def get_balance(trip_id: str, current_user: dict = Depends(get_current_use
     trip = _get_trip(db, trip_id)
     require_trip_member(trip, current_user["uid"])
 
-    expenses = [doc.to_dict() for doc in
-                db.collection("trips").document(trip_id).collection("expenses").stream()]
-    settlements_raw = [doc.to_dict() for doc in
-                       db.collection("trips").document(trip_id).collection("settlements").stream()]
+    expenses, settlements_raw = await asyncio.gather(
+        stream_docs(db.collection("trips").document(trip_id).collection("expenses")),
+        stream_docs(db.collection("trips").document(trip_id).collection("settlements")),
+    )
 
     balances = calculate_balances(expenses, settlements_raw)
     dest_currency = trip["destinationCurrency"]

@@ -1,6 +1,8 @@
+import asyncio
 import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from app.dependencies import get_current_user
 from app.models.expense import ExpenseCreate, ExpenseUpdate
 from app.services.firestore import get_db, doc_to_dict
@@ -33,18 +35,37 @@ async def _build_expense(body: ExpenseCreate, trip: dict, uid: str) -> dict:
     members = trip.get("members", [])
     home_currencies = _member_home_currencies(members)
 
+    # Override with the expense creator's current profile currency — trip member
+    # record may be stale if the user changed their home currency after joining.
+    db = get_db()
+    user_doc = await asyncio.to_thread(lambda: db.collection("users").document(uid).get())
+    if user_doc.exists:
+        current_home = (user_doc.to_dict() or {}).get("homeCurrency")
+        if current_home:
+            home_currencies[uid] = current_home
+
+    # Determine which date to use for exchange rates
+    from datetime import date as _date
+    today_str = _date.today().isoformat()
+    rate_date = "latest"
+    if body.expenseDate and body.expenseDate < today_str:
+        rate_date = body.expenseDate
+
     # All unique currencies we need rates for
     all_currencies = list(set(home_currencies.values()) | {body.originalCurrency, dest_currency})
-    rates = await fx_service.fetch_rates(dest_currency, [c for c in all_currencies if c != dest_currency])
+    rates = await fx_service.fetch_rates(dest_currency, [c for c in all_currencies if c != dest_currency], date=rate_date)
     rates[dest_currency] = 1.0
 
     # Convert to destination currency
     if body.originalCurrency == dest_currency:
         total_dest = body.originalAmount
         rate_used = 1.0
+    elif body.customRate and body.customRate > 0:
+        # User-supplied rate (e.g. cash exchange booth rate)
+        rate_used = body.customRate
+        total_dest = round(body.originalAmount * rate_used, 2)
     else:
         orig_rate = rates.get(body.originalCurrency, 1.0)
-        # orig_rate is dest per 1 dest → need dest per orig
         # frankfurter gives: base=dest, symbols=orig → rates[orig] = how many orig per 1 dest
         # So: 1 orig = 1 / rates[orig] dest
         rate_used = 1.0 / orig_rate if orig_rate else 1.0
@@ -84,6 +105,16 @@ async def _build_expense(body: ExpenseCreate, trip: dict, uid: str) -> dict:
         })
 
     now = datetime.now(timezone.utc)
+    # Use the user-supplied expense date as the logical timestamp when provided
+    if body.expenseDate:
+        from datetime import datetime as _dt
+        try:
+            expense_ts = _dt.fromisoformat(body.expenseDate).replace(tzinfo=timezone.utc)
+        except ValueError:
+            expense_ts = now
+    else:
+        expense_ts = now
+
     return {
         "description": body.description,
         "category": body.category,
@@ -97,9 +128,12 @@ async def _build_expense(body: ExpenseCreate, trip: dict, uid: str) -> dict:
         "splitMode": split_mode,
         "paidBy": body.paidBy,
         "splits": final_splits,
-        "receiptUrl": None,
+        "notes": body.notes or "",
+        "receiptUrl": body.receiptUrl,
+        "isRecurring": body.isRecurring or False,
+        "expenseDate": body.expenseDate or today_str,
         "createdBy": uid,
-        "createdAt": now,
+        "createdAt": expense_ts,
         "updatedAt": now,
     }
 
@@ -216,12 +250,16 @@ async def update_expense(trip_id: str, expense_id: str, body: ExpenseUpdate,
         paidBy=body.paidBy or existing["paidBy"],
         splitMode=body.splitMode or existing.get("splitMode", "equal"),
         splits=body.splits or [],
+        notes=body.notes if body.notes is not None else existing.get("notes", ""),
+        customRate=body.customRate,
+        receiptUrl=body.receiptUrl if body.receiptUrl is not None else existing.get("receiptUrl"),
     )
 
     updated = await _build_expense(create_body, trip, current_user["uid"])
     updated["expenseId"] = expense_id
     updated["createdBy"] = existing["createdBy"]
     updated["createdAt"] = existing["createdAt"]
+    updated["comments"] = existing.get("comments", [])
 
     db.collection("trips").document(trip_id).collection("expenses").document(expense_id).set(updated)
     return updated
@@ -254,4 +292,67 @@ async def delete_expense(trip_id: str, expense_id: str, current_user: dict = Dep
                     raise HTTPException(status_code=403, detail="Can only delete within 24 hours")
 
     db.collection("trips").document(trip_id).collection("expenses").document(expense_id).delete()
+    return {"ok": True}
+
+
+# ─── Comments ─────────────────────────────────────────────────────────────────
+
+class CommentCreate(BaseModel):
+    text: str
+
+
+@router.post("/{trip_id}/expenses/{expense_id}/comments")
+async def add_comment(trip_id: str, expense_id: str, body: CommentCreate,
+                      current_user: dict = Depends(get_current_user)):
+    db = get_db()
+    trip = _get_trip(db, trip_id)
+    require_trip_member(trip, current_user["uid"])
+
+    ref = db.collection("trips").document(trip_id).collection("expenses").document(expense_id)
+    doc = ref.get()
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Expense not found")
+
+    # Resolve display name from trip members
+    member = next((m for m in trip.get("members", []) if m.get("userId") == current_user["uid"]), {})
+    display_name = member.get("displayName") or current_user.get("name", "")
+
+    comment = {
+        "id": f"cmt_{uuid.uuid4().hex[:8]}",
+        "userId": current_user["uid"],
+        "displayName": display_name,
+        "text": body.text.strip(),
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+    }
+
+    existing = doc.to_dict() or {}
+    comments = existing.get("comments", [])
+    comments.append(comment)
+    ref.update({"comments": comments})
+    return comment
+
+
+@router.delete("/{trip_id}/expenses/{expense_id}/comments/{comment_id}")
+async def delete_comment(trip_id: str, expense_id: str, comment_id: str,
+                         current_user: dict = Depends(get_current_user)):
+    db = get_db()
+    trip = _get_trip(db, trip_id)
+    require_trip_member(trip, current_user["uid"])
+
+    ref = db.collection("trips").document(trip_id).collection("expenses").document(expense_id)
+    doc = ref.get()
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Expense not found")
+
+    existing = doc.to_dict() or {}
+    comments = existing.get("comments", [])
+    uid = current_user["uid"]
+    is_owner = trip.get("createdBy") == uid
+    new_comments = [c for c in comments if not (
+        c.get("id") == comment_id and (c.get("userId") == uid or is_owner)
+    )]
+    if len(new_comments) == len(comments):
+        raise HTTPException(status_code=404, detail="Comment not found or not authorized")
+
+    ref.update({"comments": new_comments})
     return {"ok": True}

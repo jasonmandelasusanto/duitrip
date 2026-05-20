@@ -17,6 +17,11 @@ class ExpenseCreate(BaseModel):
     paidBy: str
     splitMode: str = "equal"  # "equal" | "percentage" | "exact"
     splits: List[SplitInput] = []
+    notes: Optional[str] = None
+    customRate: Optional[float] = None  # override live exchange rate
+    receiptUrl: Optional[str] = None   # base64 data URL or storage URL
+    isRecurring: Optional[bool] = False
+    expenseDate: Optional[str] = None  # YYYY-MM-DD; None/today → "latest" rates
 
 
 class ExpenseUpdate(BaseModel):
@@ -27,3 +32,6 @@ class ExpenseUpdate(BaseModel):
     paidBy: Optional[str] = None
     splitMode: Optional[str] = None
     splits: Optional[List[SplitInput]] = None
+    notes: Optional[str] = None
+    customRate: Optional[float] = None
+    receiptUrl: Optional[str] = None

@@ -9,9 +9,12 @@ interface TripHeaderProps {
   trip: Trip;
   totalSpend?: number;
   myShare?: number;
+  myShareHome?: number;
+  myHomeCurrency?: string;
+  budgetInDestCurrency?: number;
 }
 
-export function TripHeader({ trip, totalSpend, myShare }: TripHeaderProps) {
+export function TripHeader({ trip, totalSpend, myShare, myShareHome, myHomeCurrency, budgetInDestCurrency }: TripHeaderProps) {
   const { user } = useAppStore();
   const visibleMembers = trip.members.slice(0, 5);
   const overflow = trip.members.length - 5;
@@ -71,6 +74,41 @@ export function TripHeader({ trip, totalSpend, myShare }: TripHeaderProps) {
               <p className="text-sm font-semibold text-text-primary">
                 {formatCurrency(myShare, trip.destinationCurrency)}
               </p>
+              {myShareHome !== undefined && myHomeCurrency && myHomeCurrency !== trip.destinationCurrency && myShareHome > 0 && (
+                <p className="text-xs text-text-muted">≈ {formatCurrency(myShareHome, myHomeCurrency)}</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {trip.budget && totalSpend !== undefined && (
+        <div className="mt-3 pt-3 border-t border-bg-border">
+          <div className="flex items-center justify-between text-xs mb-1.5">
+            <span className="text-text-muted">Budget</span>
+            <div className="text-right">
+              {budgetInDestCurrency !== undefined ? (
+                <>
+                  <span className={`font-mono font-medium ${totalSpend > budgetInDestCurrency ? 'text-danger' : 'text-text-secondary'}`}>
+                    {formatCurrency(totalSpend, trip.destinationCurrency)} / {formatCurrency(trip.budget, trip.budgetCurrency || trip.destinationCurrency)}
+                  </span>
+                  {trip.budgetCurrency && trip.budgetCurrency !== trip.destinationCurrency && (
+                    <p className="text-text-muted">≈ {formatCurrency(budgetInDestCurrency, trip.destinationCurrency)}</p>
+                  )}
+                </>
+              ) : (
+                <span className="text-text-muted font-mono">
+                  {formatCurrency(trip.budget, trip.budgetCurrency || trip.destinationCurrency)}
+                </span>
+              )}
+            </div>
+          </div>
+          {budgetInDestCurrency !== undefined && (
+            <div className="h-1.5 bg-bg-border rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${totalSpend > budgetInDestCurrency ? 'bg-danger' : totalSpend / budgetInDestCurrency > 0.8 ? 'bg-amber' : 'bg-teal'}`}
+                style={{ width: `${Math.min(100, (totalSpend / budgetInDestCurrency) * 100).toFixed(1)}%` }}
+              />
             </div>
           )}
         </div>

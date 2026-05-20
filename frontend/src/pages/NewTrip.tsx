@@ -22,6 +22,8 @@ export default function NewTrip() {
   const [currency, setCurrency] = useState('USD');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [budget, setBudget] = useState('');
+  const [budgetCurrency, setBudgetCurrency] = useState('');
   const [suggestions, setSuggestions] = useState<NominatimResult[]>([]);
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef<number | null>(null);
@@ -44,14 +46,16 @@ export default function NewTrip() {
   function selectPlace(place: NominatimResult) {
     setDestination(place.display_name.split(',').slice(0, 2).join(',').trim());
     const cc = place.address.country_code?.toLowerCase();
-    setCurrency(COUNTRY_CURRENCY[cc] || 'USD');
+    const resolved = COUNTRY_CURRENCY[cc] || 'USD';
+    setCurrency(resolved);
+    if (!budgetCurrency) setBudgetCurrency(resolved);
     setSuggestions([]);
   }
 
   async function handleCreate() {
     setLoading(true);
     try {
-      const res = await api.post('/trips', { name, destination, startDate, endDate, destinationCurrency: currency });
+      const res = await api.post('/trips', { name, destination, startDate, endDate, destinationCurrency: currency, budget: budget ? parseFloat(budget) : null, budgetCurrency: budget ? (budgetCurrency || currency) : null });
       navigate(`/trips/${res.data.tripId}`);
     } finally {
       setLoading(false);
@@ -62,7 +66,7 @@ export default function NewTrip() {
 
   return (
     <div className="min-h-screen bg-bg-base">
-      <div className="max-w-lg mx-auto px-4 pt-8 pb-10">
+      <div className="max-w-2xl mx-auto px-4 pt-8 pb-10">
         <button onClick={() => navigate(-1)} className="text-text-secondary text-sm mb-6 hover:text-text-primary">← Back</button>
         <h1 className="text-2xl font-bold text-text-primary mb-6">New Trip</h1>
 
@@ -99,6 +103,27 @@ export default function NewTrip() {
           <div className="grid grid-cols-2 gap-3">
             <Input label="Start date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
             <Input label="End date" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+          </div>
+
+          <div>
+            <label className="text-sm text-text-secondary block mb-1">
+              Budget <span className="text-text-muted">(optional)</span>
+            </label>
+            <div className="flex gap-2">
+              <input
+                value={budgetCurrency || currency}
+                onChange={(e) => setBudgetCurrency(e.target.value.toUpperCase())}
+                maxLength={3}
+                className="w-20 bg-bg-elevated border border-bg-border rounded-lg px-2 py-1 text-amber font-mono font-semibold text-sm focus:outline-none focus:border-teal"
+              />
+              <input
+                type="number"
+                placeholder="e.g. 5000"
+                value={budget}
+                onChange={(e) => setBudget(e.target.value)}
+                className="flex-1 bg-bg-elevated border border-bg-border rounded-xl px-3 py-2 text-text-primary focus:outline-none focus:border-teal font-mono text-sm"
+              />
+            </div>
           </div>
 
           <Button className="w-full mt-2" size="lg" onClick={handleCreate} disabled={!valid || loading}>

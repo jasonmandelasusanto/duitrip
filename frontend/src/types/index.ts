@@ -37,9 +37,11 @@ export interface Trip {
   destinationCurrency: string;
   startDate: string;
   endDate: string;
+  budget?: number;
+  budgetCurrency?: string;
   createdBy: string;
   members: TripMember[];
-  invites: TripInvite[];
+  invites?: TripInvite[];
   customCategories: CustomCategory[];
   status: 'active' | 'settled' | 'archived';
   createdAt: string;
@@ -65,6 +67,14 @@ export interface MemberStatus {
   status: 'paid' | 'settled' | 'outstanding';
 }
 
+export interface ExpenseComment {
+  id: string;
+  userId: string;
+  displayName: string;
+  text: string;
+  createdAt: string;
+}
+
 export interface Expense {
   expenseId: string;
   description: string;
@@ -74,12 +84,15 @@ export interface Expense {
   destinationCurrency: string;
   amountInDestinationCurrency: number;
   exchangeRateUsed: number;
-  exchangeRateTimestamp: string;
+  exchangeRateTimestamp: unknown;
   exchangeRates: Record<string, number>;
   splitMode: 'equal' | 'percentage' | 'exact';
   paidBy: string;
   splits: SplitEntry[];
+  notes?: string;
   receiptUrl?: string | null;
+  isRecurring?: boolean;
+  comments?: ExpenseComment[];
   createdBy: string;
   createdAt: string;
   updatedAt: string;

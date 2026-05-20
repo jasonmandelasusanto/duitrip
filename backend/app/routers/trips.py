@@ -49,6 +49,8 @@ async def create_trip(body: TripCreate, current_user: dict = Depends(get_current
         "destinationCurrency": dest_currency,
         "startDate": body.startDate,
         "endDate": body.endDate,
+        "budget": body.budget,
+        "budgetCurrency": body.budgetCurrency or dest_currency,
         "createdBy": current_user["uid"],
         "members": [{
             "userId": current_user["uid"],
@@ -60,6 +62,7 @@ async def create_trip(body: TripCreate, current_user: dict = Depends(get_current
             "joinedAt": now,
             "ghostId": None,
         }],
+        "memberUids": [current_user["uid"]],
         "invites": [],
         "customCategories": [],
         "status": "active",
@@ -75,16 +78,15 @@ async def create_trip(body: TripCreate, current_user: dict = Depends(get_current
 async def list_trips(current_user: dict = Depends(get_current_user)):
     db = get_db()
     uid = current_user["uid"]
-    # Firestore doesn't support array-of-object queries well; fetch all and filter
-    all_trips = db.collection("trips").where("status", "!=", "archived").stream()
+    # array_contains on memberUids — O(user's trips) instead of full scan
+    docs = db.collection("trips").where("memberUids", "array_contains", uid).stream()
     result = []
-    for doc in all_trips:
+    for doc in docs:
         data = doc.to_dict()
-        members = data.get("members", [])
-        real_uids = [m.get("userId") for m in members if m.get("role") != "ghost"]
-        if uid in real_uids:
-            data["tripId"] = doc.id
-            result.append(data)
+        if data.get("status") == "archived":
+            continue
+        data["tripId"] = doc.id
+        result.append(data)
     return result
 
 
@@ -113,6 +115,39 @@ async def update_trip(trip_id: str, body: TripUpdate, current_user: dict = Depen
         updates["destinationCurrency"] = _resolve_currency(updates["destination"])
     db.collection("trips").document(trip_id).update(updates)
     return {"ok": True}
+
+
+@router.post("/{trip_id}/duplicate")
+async def duplicate_trip(trip_id: str, current_user: dict = Depends(get_current_user)):
+    db = get_db()
+    doc = db.collection("trips").document(trip_id).get()
+    data = doc_to_dict(doc)
+    if not data:
+        raise HTTPException(status_code=404, detail="Trip not found")
+    require_trip_member(data, current_user["uid"])
+
+    new_id = f"trip_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc)
+    new_trip = {
+        "tripId": new_id,
+        "name": f"{data['name']} (copy)",
+        "destination": data["destination"],
+        "destinationCurrency": data["destinationCurrency"],
+        "startDate": data["startDate"],
+        "endDate": data["endDate"],
+        "budget": data.get("budget"),
+        "budgetCurrency": data.get("budgetCurrency", data.get("destinationCurrency")),
+        "createdBy": current_user["uid"],
+        "members": data.get("members", []),
+        "memberUids": data.get("memberUids", [current_user["uid"]]),
+        "invites": [],
+        "customCategories": data.get("customCategories", []),
+        "status": "active",
+        "createdAt": now,
+        "updatedAt": now,
+    }
+    db.collection("trips").document(new_id).set(new_trip)
+    return {"tripId": new_id}
 
 
 @router.delete("/{trip_id}")
@@ -171,4 +206,22 @@ async def nudge_member(trip_id: str, body: NudgeRequest, current_user: dict = De
         "read": False,
         "createdAt": datetime.now(timezone.utc).isoformat(),
     })
+
+    # Send FCM push notification if recipient has a token
+    try:
+        recipient_doc = db.collection("users").document(body.toUserId).get()
+        if recipient_doc.exists:
+            fcm_token = (recipient_doc.to_dict() or {}).get("fcmToken")
+            if fcm_token:
+                from firebase_admin import messaging
+                messaging.send(messaging.Message(
+                    notification=messaging.Notification(
+                        title=f"Nudge from {sender_name}",
+                        body=f"You owe {body.amount} {body.currency} on {data.get('name', 'your trip')}",
+                    ),
+                    token=fcm_token,
+                ))
+    except Exception:
+        pass  # FCM failures must never break the nudge flow
+
     return {"ok": True}

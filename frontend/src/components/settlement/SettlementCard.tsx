@@ -61,7 +61,7 @@ export function SettlementCard({ transaction: tx, onMarkSettled, onNudge }: Sett
             {formatCurrency(tx.amountInDestinationCurrency, tx.destinationCurrency)}
           </p>
           <p className="text-xs text-text-muted mt-0.5">
-            ≈ {formatCurrency(tx.amountInFromHomeCurrency, tx.fromHomeCurrency)} → {formatCurrency(tx.amountInToHomeCurrency, tx.toHomeCurrency)}
+            today's equiv: {formatCurrency(tx.amountInFromHomeCurrency, tx.fromHomeCurrency)} → {formatCurrency(tx.amountInToHomeCurrency, tx.toHomeCurrency)}
           </p>
           {isGhostTx && (
             <p className="text-xs text-warning mt-1">⚠️ Collect offline</p>

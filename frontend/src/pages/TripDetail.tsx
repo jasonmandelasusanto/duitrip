@@ -1,109 +1,324 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useTrip } from '../hooks/useTrip';
 import { useExpenses } from '../hooks/useExpenses';
+import { useSettlements } from '../hooks/useSettlements';
 import { useAppStore } from '../store/useAppStore';
+import { useExchangeRates } from '../hooks/useExchangeRates';
 import { TripHeader } from '../components/trip/TripHeader';
 import { ExpenseCard } from '../components/expense/ExpenseCard';
 import { Button } from '../components/ui/Button';
 import { formatCurrency } from '../utils/currency';
-import api from '../services/api';
+import { exportExpensesCSV, exportSummaryCSV } from '../utils/export';
+import { DEFAULT_CATEGORIES } from '../types';
+import type { Expense, Settlement, TripMember } from '../types';
+
+function computeMyBalance(
+  expenses: Expense[],
+  settlements: Settlement[],
+  myUid: string,
+  members: TripMember[],
+) {
+  // Net balance per uid (destination currency): positive = owed money, negative = owes
+  const net: Record<string, number> = {};
+  for (const exp of expenses) {
+    net[exp.paidBy] = (net[exp.paidBy] || 0) + exp.amountInDestinationCurrency;
+    for (const sp of exp.splits) {
+      net[sp.userId] = (net[sp.userId] || 0) - sp.amountInDestinationCurrency;
+    }
+  }
+  for (const s of settlements) {
+    net[s.fromUserId] = (net[s.fromUserId] || 0) + s.amountInDestinationCurrency;
+    net[s.toUserId] = (net[s.toUserId] || 0) - s.amountInDestinationCurrency;
+  }
+
+  // Bilateral pair-wise flows between me and each other member
+  const bilateral: Record<string, number> = {};
+  for (const exp of expenses) {
+    for (const sp of exp.splits) {
+      if (sp.userId === exp.paidBy) continue;
+      if (exp.paidBy === myUid) {
+        // sp.userId owes me their share
+        bilateral[sp.userId] = (bilateral[sp.userId] || 0) + sp.amountInDestinationCurrency;
+      } else if (sp.userId === myUid) {
+        // I owe exp.paidBy my share
+        bilateral[exp.paidBy] = (bilateral[exp.paidBy] || 0) - sp.amountInDestinationCurrency;
+      }
+    }
+  }
+  for (const s of settlements) {
+    if (s.toUserId === myUid) {
+      bilateral[s.fromUserId] = (bilateral[s.fromUserId] || 0) - s.amountInDestinationCurrency;
+    } else if (s.fromUserId === myUid) {
+      bilateral[s.toUserId] = (bilateral[s.toUserId] || 0) + s.amountInDestinationCurrency;
+    }
+  }
+
+  const memberMap = Object.fromEntries(members.map((m) => [(m.userId || m.ghostId)!, m]));
+  const owedToMeBy = Object.entries(bilateral)
+    .filter(([, v]) => v > 0.01)
+    .map(([uid, amount]) => ({
+      userId: uid,
+      displayName: memberMap[uid]?.displayName || uid,
+      isGhost: memberMap[uid]?.role === 'ghost',
+      amount: Math.round(amount * 100) / 100,
+    }));
+
+  return {
+    myBalance: {
+      netBalance: Math.round((net[myUid] || 0) * 100) / 100,
+      totalOwedToMe: owedToMeBy.reduce((s, e) => s + e.amount, 0),
+      totalIOwe: Object.values(bilateral).filter((v) => v < -0.01).reduce((s, v) => s - v, 0),
+      owedToMeBy,
+    },
+  };
+}
 
 export default function TripDetail() {
   const { tripId } = useParams<{ tripId: string }>();
   const { trip, loading } = useTrip(tripId);
   const { expenses } = useExpenses(tripId);
+  const { settlements } = useSettlements(tripId);
   const { user } = useAppStore();
   const navigate = useNavigate();
-  const [balance, setBalance] = useState<{ myBalance: { netBalance: number; totalOwedToMe: number; totalIOwe: number; owedToMeBy: Array<{ userId: string; displayName: string; isGhost: boolean; amount: number }> } } | null>(null);
+  const { rates, fetchRates } = useExchangeRates();
 
+  const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [payerFilter, setPayerFilter] = useState('');
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
+  const totalSpend = useMemo(
+    () => expenses.reduce((s, e) => s + e.amountInDestinationCurrency, 0),
+    [expenses],
+  );
+  const myShare = useMemo(() => {
+    if (!user) return 0;
+    return expenses.reduce((s, e) => {
+      const sp = e.splits.find((x) => x.userId === user.uid);
+      return s + (sp?.amountInDestinationCurrency || 0);
+    }, 0);
+  }, [expenses, user]);
+  const myShareHome = useMemo(() => {
+    if (!user) return 0;
+    return expenses.reduce((s, e) => {
+      const sp = e.splits.find((x) => x.userId === user.uid);
+      return s + (sp?.amountInHomeCurrency || 0);
+    }, 0);
+  }, [expenses, user]);
+
+  const balance = useMemo(() => {
+    if (!user || !trip) return null;
+    return computeMyBalance(expenses, settlements, user.uid, trip.members);
+  }, [expenses, settlements, user, trip]);
+
+  // Fetch exchange rate when budget is in a different currency than the destination
   useEffect(() => {
-    if (!tripId) return;
-    api.get(`/trips/${tripId}/balance`).then((r) => setBalance(r.data)).catch(console.error);
-  }, [tripId, expenses]);
+    if (trip?.budget && trip.budgetCurrency && trip.budgetCurrency !== trip.destinationCurrency) {
+      fetchRates(trip.destinationCurrency, [trip.budgetCurrency]);
+    }
+  }, [trip?.budgetCurrency, trip?.destinationCurrency, fetchRates]);
+
+  // Budget converted to destination currency for progress bar
+  const budgetInDestCurrency = useMemo(() => {
+    if (!trip?.budget) return undefined;
+    const bc = trip.budgetCurrency || trip.destinationCurrency;
+    if (bc === trip.destinationCurrency) return trip.budget;
+    // rates[budgetCurrency] = how many budgetCurrency units per 1 destinationCurrency
+    const rate = rates[bc];
+    if (!rate) return undefined;
+    return trip.budget / rate;
+  }, [trip?.budget, trip?.budgetCurrency, trip?.destinationCurrency, rates]);
+
+  const filteredExpenses = useMemo(() => {
+    return expenses.filter((e) => {
+      if (search && !e.description.toLowerCase().includes(search.toLowerCase())) return false;
+      if (categoryFilter && e.category !== categoryFilter) return false;
+      if (payerFilter && e.paidBy !== payerFilter) return false;
+      return true;
+    });
+  }, [expenses, search, categoryFilter, payerFilter]);
 
   if (loading || !trip) return <div className="min-h-screen bg-bg-base flex items-center justify-center text-text-muted">Loading…</div>;
 
-  const totalSpend = expenses.reduce((s, e) => s + e.amountInDestinationCurrency, 0);
-  const myShare = expenses.reduce((s, e) => {
-    const sp = e.splits.find((x) => x.userId === user?.uid);
-    return s + (sp?.amountInDestinationCurrency || 0);
-  }, 0);
   const myNet = balance?.myBalance.netBalance ?? 0;
+
+  const tabs = [
+    { label: 'Expenses', path: `/trips/${tripId}` },
+    { label: 'Analytics', path: `/trips/${tripId}/analytics` },
+    { label: 'Members', path: `/trips/${tripId}/members` },
+    { label: 'Settle Up', path: `/trips/${tripId}/settlement` },
+  ];
 
   return (
     <div className="min-h-screen bg-bg-base">
-      <div className="max-w-lg mx-auto px-4 pt-6 pb-24">
+      {/* Mobile layout */}
+      <div className="lg:hidden max-w-lg mx-auto px-4 pt-6 pb-24">
         <button onClick={() => navigate('/dashboard')} className="text-text-secondary text-sm mb-4 hover:text-text-primary">← Dashboard</button>
-
-        <TripHeader trip={trip} totalSpend={totalSpend} myShare={myShare} />
-
-        {/* Tab bar */}
+        <TripHeader trip={trip} totalSpend={totalSpend} myShare={myShare} myShareHome={myShareHome} myHomeCurrency={user?.homeCurrency} budgetInDestCurrency={budgetInDestCurrency} />
         <div className="flex bg-bg-surface border border-bg-border rounded-xl p-1 gap-1 mb-4">
-          {[
-            { label: 'Expenses', path: `/trips/${tripId}` },
-            { label: 'Analytics', path: `/trips/${tripId}/analytics` },
-            { label: 'Members', path: `/trips/${tripId}/members` },
-            { label: 'Settle Up', path: `/trips/${tripId}/settlement` },
-          ].map((tab) => (
-            <Link
-              key={tab.label}
-              to={tab.path}
-              className={`flex-1 text-center py-2 text-xs font-medium rounded-lg transition-colors ${
-                tab.label === 'Expenses'
-                  ? 'bg-teal text-white'
-                  : tab.label === 'Settle Up'
-                  ? 'text-amber hover:bg-bg-elevated'
-                  : 'text-text-secondary hover:bg-bg-elevated'
-              }`}
-            >
-              {tab.label}
-            </Link>
+          {tabs.map((tab) => (
+            <Link key={tab.label} to={tab.path}
+              className={`flex-1 text-center py-2 text-xs font-medium rounded-lg transition-colors ${tab.label === 'Expenses' ? 'bg-teal text-white' : tab.label === 'Settle Up' ? 'text-amber hover:bg-bg-elevated' : 'text-text-secondary hover:bg-bg-elevated'}`}
+            >{tab.label}</Link>
           ))}
         </div>
-
-        {/* Balance card */}
-        {balance && (
-          <div className="bg-bg-surface border border-bg-border rounded-xl p-4 mb-4">
-            <p className="text-sm font-semibold text-text-primary mb-2">Your Balance</p>
-            {Math.abs(myNet) < 0.01 ? (
-              <p className="text-success text-sm">✓ All settled</p>
-            ) : (
-              <>
-                <p className={`text-lg font-bold ${myNet > 0 ? 'text-success' : 'text-danger'}`}>
-                  {myNet > 0 ? 'You are owed ' : 'You owe '}
-                  {formatCurrency(Math.abs(myNet), trip.destinationCurrency)}
-                </p>
-                <div className="flex flex-col gap-1 mt-2">
-                  {(balance.myBalance.owedToMeBy || []).map((b) => (
-                    <p key={b.userId} className="text-xs text-text-secondary">
-                      {b.displayName} {b.isGhost ? '👻 ' : ''}owes you {formatCurrency(b.amount, trip.destinationCurrency)} ⏳
-                    </p>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
-        {/* Expense list */}
-        <div className="flex flex-col gap-3">
-          {expenses.length === 0 && (
-            <p className="text-center text-text-muted py-8">No expenses yet. Add the first one!</p>
-          )}
-          {expenses.map((e) => (
-            <ExpenseCard key={e.expenseId} expense={e} tripId={tripId!} destinationCurrency={trip.destinationCurrency} members={trip.members} />
-          ))}
-        </div>
-
+        <BalanceCard balance={balance} myNet={myNet} trip={trip} formatCurrency={formatCurrency} />
+        <FiltersAndList
+          search={search} setSearch={setSearch}
+          categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter}
+          payerFilter={payerFilter} setPayerFilter={setPayerFilter}
+          showExportMenu={showExportMenu} setShowExportMenu={setShowExportMenu}
+          expenses={expenses} filteredExpenses={filteredExpenses}
+          trip={trip} tripId={tripId!}
+          exportExpensesCSV={exportExpensesCSV} exportSummaryCSV={exportSummaryCSV}
+        />
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2">
-          <Link to={`/trips/${tripId}/expenses/new`}>
-            <Button size="lg" className="shadow-lg shadow-teal/20">
-              + Add Expense
-            </Button>
-          </Link>
+          <Link to={`/trips/${tripId}/expenses/new`}><Button size="lg" className="shadow-lg shadow-teal/20">+ Add Expense</Button></Link>
+        </div>
+      </div>
+
+      {/* Desktop layout — left panel + right content */}
+      <div className="hidden lg:flex min-h-screen">
+        {/* Left panel: trip info + tabs + balance */}
+        <div className="w-80 shrink-0 border-r border-bg-border bg-bg-surface flex flex-col sticky top-0 h-screen overflow-y-auto">
+          <div className="p-5">
+            <button onClick={() => navigate('/dashboard')} className="text-text-secondary text-sm mb-4 hover:text-text-primary block">← All Trips</button>
+            <TripHeader trip={trip} totalSpend={totalSpend} myShare={myShare} myShareHome={myShareHome} myHomeCurrency={user?.homeCurrency} budgetInDestCurrency={budgetInDestCurrency} />
+          </div>
+          {/* Vertical tabs */}
+          <nav className="px-3 pb-3 flex flex-col gap-1">
+            {tabs.map((tab) => (
+              <Link key={tab.label} to={tab.path}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${tab.label === 'Expenses' ? 'bg-teal text-white' : tab.label === 'Settle Up' ? 'text-amber hover:bg-amber/10' : 'text-text-secondary hover:bg-bg-elevated'}`}
+              >
+                <span>{tab.label === 'Expenses' ? '💸' : tab.label === 'Analytics' ? '📊' : tab.label === 'Members' ? '👥' : '💰'}</span>
+                {tab.label}
+              </Link>
+            ))}
+          </nav>
+          {balance && (
+            <div className="mx-3 mb-3">
+              <BalanceCard balance={balance} myNet={myNet} trip={trip} formatCurrency={formatCurrency} />
+            </div>
+          )}
+          <div className="mt-auto p-3 border-t border-bg-border">
+            <Link to={`/trips/${tripId}/expenses/new`}><Button size="sm" className="w-full">+ Add Expense</Button></Link>
+          </div>
+        </div>
+
+        {/* Right panel: expense list */}
+        <div className="flex-1 px-6 pt-6 pb-10 overflow-y-auto">
+          <FiltersAndList
+            search={search} setSearch={setSearch}
+            categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter}
+            payerFilter={payerFilter} setPayerFilter={setPayerFilter}
+            showExportMenu={showExportMenu} setShowExportMenu={setShowExportMenu}
+            expenses={expenses} filteredExpenses={filteredExpenses}
+            trip={trip} tripId={tripId!}
+            exportExpensesCSV={exportExpensesCSV} exportSummaryCSV={exportSummaryCSV}
+          />
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Extracted sub-components ────────────────────────────────────────────────
+
+function BalanceCard({ balance, myNet, trip, formatCurrency }: {
+  balance: ReturnType<typeof computeMyBalance> | null;
+  myNet: number;
+  trip: import('../types').Trip;
+  formatCurrency: typeof import('../utils/currency').formatCurrency;
+}) {
+  if (!balance) return null;
+  return (
+    <div className="bg-bg-surface border border-bg-border rounded-xl p-4 mb-4">
+      <p className="text-sm font-semibold text-text-primary mb-2">Your Balance</p>
+      {Math.abs(myNet) < 0.01 ? (
+        <p className="text-success text-sm">✓ All settled</p>
+      ) : (
+        <>
+          <p className={`text-lg font-bold ${myNet > 0 ? 'text-success' : 'text-danger'}`}>
+            {myNet > 0 ? 'You are owed ' : 'You owe '}
+            {formatCurrency(Math.abs(myNet), trip.destinationCurrency)}
+          </p>
+          <div className="flex flex-col gap-1 mt-2">
+            {(balance.myBalance.owedToMeBy || []).map((b) => (
+              <p key={b.userId} className="text-xs text-text-secondary">
+                {b.displayName} {b.isGhost ? '👻 ' : ''}owes you {formatCurrency(b.amount, trip.destinationCurrency)} ⏳
+              </p>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function FiltersAndList({ search, setSearch, categoryFilter, setCategoryFilter, payerFilter, setPayerFilter,
+  showExportMenu, setShowExportMenu, expenses, filteredExpenses, trip, tripId,
+  exportExpensesCSV, exportSummaryCSV }: {
+  search: string; setSearch: (v: string) => void;
+  categoryFilter: string; setCategoryFilter: (v: string) => void;
+  payerFilter: string; setPayerFilter: (v: string) => void;
+  showExportMenu: boolean; setShowExportMenu: (v: boolean) => void;
+  expenses: import('../types').Expense[];
+  filteredExpenses: import('../types').Expense[];
+  trip: import('../types').Trip;
+  tripId: string;
+  exportExpensesCSV: typeof import('../utils/export').exportExpensesCSV;
+  exportSummaryCSV: typeof import('../utils/export').exportSummaryCSV;
+}) {
+  return (
+    <>
+      <div className="flex flex-col gap-2 mb-3">
+        <div className="flex gap-2 items-center">
+          <input type="search" placeholder="Search expenses…" value={search} onChange={(e) => setSearch(e.target.value)}
+            className="flex-1 bg-bg-surface border border-bg-border rounded-xl px-3 py-2 text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-teal"
+          />
+          <div className="relative">
+            <button onClick={() => setShowExportMenu(!showExportMenu)}
+              className="px-3 py-2 bg-bg-surface border border-bg-border rounded-xl text-sm text-text-secondary hover:border-teal/50 transition-colors">
+              Export
+            </button>
+            {showExportMenu && (
+              <div className="absolute right-0 top-full mt-1 bg-bg-elevated border border-bg-border rounded-xl overflow-hidden z-10 min-w-[160px]">
+                <button onClick={() => { exportExpensesCSV(expenses, trip.members, trip.name, trip.destinationCurrency); setShowExportMenu(false); }}
+                  className="w-full text-left px-4 py-3 text-sm text-text-secondary hover:bg-bg-surface border-b border-bg-border">Expenses CSV</button>
+                <button onClick={() => { exportSummaryCSV(expenses, trip.members, trip.name, trip.destinationCurrency); setShowExportMenu(false); }}
+                  className="w-full text-left px-4 py-3 text-sm text-text-secondary hover:bg-bg-surface">Summary CSV</button>
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide">
+          <button onClick={() => setCategoryFilter('')}
+            className={`shrink-0 px-2.5 py-1 rounded-full text-xs transition-colors ${!categoryFilter ? 'bg-teal text-white' : 'bg-bg-surface border border-bg-border text-text-muted'}`}>All</button>
+          {DEFAULT_CATEGORIES.map((c) => (
+            <button key={c.name} onClick={() => setCategoryFilter(categoryFilter === c.name ? '' : c.name)}
+              className={`shrink-0 px-2.5 py-1 rounded-full text-xs transition-colors ${categoryFilter === c.name ? 'bg-amber/20 text-amber border border-amber/50' : 'bg-bg-surface border border-bg-border text-text-muted'}`}>
+              {c.emoji} {c.name}
+            </button>
+          ))}
+        </div>
+        <select value={payerFilter} onChange={(e) => setPayerFilter(e.target.value)}
+          className="bg-bg-surface border border-bg-border rounded-xl px-3 py-2 text-xs text-text-secondary focus:outline-none focus:border-teal">
+          <option value="">All payers</option>
+          {trip.members.map((m) => {
+            const uid = (m.userId || m.ghostId)!;
+            return <option key={uid} value={uid}>{m.displayName}{m.role === 'ghost' ? ' 👻' : ''}</option>;
+          })}
+        </select>
+      </div>
+      <div className="flex flex-col gap-3">
+        {expenses.length === 0 && <p className="text-center text-text-muted py-8">No expenses yet. Add the first one!</p>}
+        {expenses.length > 0 && filteredExpenses.length === 0 && <p className="text-center text-text-muted py-8">No expenses match your filters.</p>}
+        {filteredExpenses.map((e) => (
+          <ExpenseCard key={e.expenseId} expense={e} tripId={tripId} destinationCurrency={trip.destinationCurrency} members={trip.members} />
+        ))}
+      </div>
+    </>
   );
 }

@@ -33,6 +33,8 @@ class TripCreate(BaseModel):
     destinationCurrency: Optional[str] = None
     startDate: str
     endDate: str
+    budget: Optional[float] = None
+    budgetCurrency: Optional[str] = None
 
 
 class TripUpdate(BaseModel):
@@ -40,6 +42,8 @@ class TripUpdate(BaseModel):
     destination: Optional[str] = None
     startDate: Optional[str] = None
     endDate: Optional[str] = None
+    budget: Optional[float] = None
+    budgetCurrency: Optional[str] = None
 
 
 class GhostMemberCreate(BaseModel):

@@ -13,8 +13,16 @@ export function tripDays(start: string, end: string): number {
   return Math.ceil(diff / 86400000) + 1;
 }
 
-export function formatTimestamp(ts: string): string {
-  return new Date(ts).toLocaleString('en-US', {
+export function formatTimestamp(ts: unknown): string {
+  let date: Date;
+  if (ts && typeof ts === 'object' && 'toDate' in ts && typeof (ts as { toDate: unknown }).toDate === 'function') {
+    date = (ts as { toDate: () => Date }).toDate();
+  } else if (typeof ts === 'string' || typeof ts === 'number') {
+    date = new Date(ts);
+  } else {
+    return '';
+  }
+  return date.toLocaleString('en-US', {
     month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
   });
 }

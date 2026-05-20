@@ -110,8 +110,10 @@ async def remove_member(trip_id: str, member_id: str, current_user: dict = Depen
     if len(new_members) == len(members):
         raise HTTPException(status_code=404, detail="Member not found")
 
+    member_uids = [m.get("userId") for m in new_members if m.get("userId") and m.get("role") != "ghost"]
     db.collection("trips").document(trip_id).update({
         "members": new_members,
+        "memberUids": member_uids,
         "updatedAt": datetime.now(timezone.utc),
     })
     return {"ok": True}
@@ -189,8 +191,10 @@ async def accept_invite(trip_id: str, current_user: dict = Depends(get_current_u
     else:
         members.append(new_member)
 
+    member_uids = [m.get("userId") for m in members if m.get("userId") and m.get("role") != "ghost"]
     db.collection("trips").document(trip_id).update({
         "members": members,
+        "memberUids": member_uids,
         "invites": invites,
         "updatedAt": datetime.now(timezone.utc),
     })

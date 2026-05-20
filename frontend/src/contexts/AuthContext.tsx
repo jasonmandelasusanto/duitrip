@@ -3,6 +3,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../services/firebase';
 import api from '../services/api';
 import { useAppStore } from '../store/useAppStore';
+import { registerFcmToken } from '../utils/fcm';
 
 const AuthContext = createContext<null>(null);
 
@@ -15,6 +16,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const res = await api.get('/users/me');
           setUser({ ...res.data, uid: res.data.uid || fbUser.uid });
+          registerFcmToken(); // fire-and-forget; gracefully degrades if VAPID key not set
         } catch {
           setUser({
             uid: fbUser.uid,

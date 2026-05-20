@@ -1,4 +1,5 @@
 import os
+import asyncio
 
 _db = None
 
@@ -28,3 +29,8 @@ def doc_to_dict(doc) -> dict | None:
     data = doc.to_dict()
     data["id"] = doc.id
     return data
+
+
+async def stream_docs(ref) -> list[dict]:
+    """Run a synchronous Firestore stream in a thread to avoid blocking the event loop."""
+    return await asyncio.to_thread(lambda: [d.to_dict() for d in ref.stream()])

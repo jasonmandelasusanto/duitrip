@@ -5,17 +5,21 @@ _cache: dict[str, dict] = {}
 _cache_ttl = 3600  # 1 hour
 
 
-async def fetch_rates(base: str, symbols: list[str]) -> dict[str, float]:
-    """Fetch exchange rates from frankfurter.app with TTL cache."""
+async def fetch_rates(base: str, symbols: list[str], date: str = "latest") -> dict[str, float]:
+    """Fetch exchange rates from frankfurter.app with TTL cache.
+    date: 'latest' for current rates, or 'YYYY-MM-DD' for historical rates.
+    """
     symbols_key = ",".join(sorted(symbols))
-    cache_key = f"{base}:{symbols_key}"
+    cache_key = f"{date}:{base}:{symbols_key}"
     now = time.time()
 
-    if cache_key in _cache and now - _cache[cache_key]["ts"] < _cache_ttl:
+    # Historical rates never change, so cache indefinitely; latest rates use TTL
+    ttl = _cache_ttl if date == "latest" else float("inf")
+    if cache_key in _cache and now - _cache[cache_key]["ts"] < ttl:
         return _cache[cache_key]["rates"]
 
     try:
-        url = "https://api.frankfurter.app/latest"
+        url = f"https://api.frankfurter.app/{date}"
         async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
             resp = await client.get(url, params={"base": base, "symbols": symbols_key})
             resp.raise_for_status()
