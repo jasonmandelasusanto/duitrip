@@ -14,7 +14,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (fbUser) {
         try {
           const res = await api.get('/users/me');
-          setUser(res.data);
+          setUser({ ...res.data, uid: res.data.uid || fbUser.uid });
         } catch {
           setUser({
             uid: fbUser.uid,

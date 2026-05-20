@@ -18,10 +18,7 @@ export const db = getFirestore(app);
 // Explicitly persist auth across browser closes (same as justliftbro)
 setPersistence(auth, browserLocalPersistence).catch(() => {});
 
-let emulatorsConnected = false;
-
-if (import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true' && !emulatorsConnected) {
-  emulatorsConnected = true;
+if (import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true') {
   const authHost = import.meta.env.VITE_AUTH_EMULATOR_HOST || 'localhost:9099';
   const firestoreHost = import.meta.env.VITE_FIRESTORE_EMULATOR_HOST || 'localhost:8080';
   const [fsHost, fsPort] = firestoreHost.split(':');

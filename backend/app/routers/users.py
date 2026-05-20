@@ -15,6 +15,7 @@ async def get_me(current_user: dict = Depends(get_current_user)):
     if not data:
         return {"uid": current_user["uid"], "email": current_user["email"],
                 "displayName": current_user.get("name", ""), "homeCurrency": "USD"}
+    data["uid"] = current_user["uid"]
     return data
 
 

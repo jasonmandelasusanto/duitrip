@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, useParams, Navigate } from 'react-router-dom';
 import api from '../services/api';
 import { useAppStore } from '../store/useAppStore';
