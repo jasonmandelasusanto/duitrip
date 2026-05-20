@@ -8,9 +8,10 @@ interface MemberListProps {
   isOwner?: boolean;
   onPromoteGhost?: (ghostId: string) => void;
   onRemoveMember?: (memberId: string) => void;
+  onEditGhost?: (ghostId: string, currentName: string, currentCurrency: string) => void;
 }
 
-export function MemberList({ members, ownerId, isOwner, onPromoteGhost, onRemoveMember }: MemberListProps) {
+export function MemberList({ members, ownerId, isOwner, onPromoteGhost, onRemoveMember, onEditGhost }: MemberListProps) {
   return (
     <div className="flex flex-col gap-2">
       {members.map((m) => {
@@ -28,6 +29,17 @@ export function MemberList({ members, ownerId, isOwner, onPromoteGhost, onRemove
             <div className="flex items-center gap-2">
               {isThisOwner && <Badge variant="teal">Owner</Badge>}
               {m.role === 'ghost' && <Badge variant="ghost">👻 Ghost</Badge>}
+              {m.role === 'ghost' && isOwner && onEditGhost && m.ghostId && (
+                <button
+                  onClick={() => onEditGhost(m.ghostId!, m.displayName, m.homeCurrency)}
+                  className="text-xs text-text-muted hover:text-teal transition-colors"
+                  title="Edit buddy"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                  </svg>
+                </button>
+              )}
               {m.role === 'ghost' && isOwner && onPromoteGhost && m.ghostId && (
                 <button
                   onClick={() => onPromoteGhost(m.ghostId!)}

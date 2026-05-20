@@ -75,7 +75,8 @@ export default function Dashboard() {
 
             {/* Trips grid — 1 col on mobile, 2 on lg */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-              {trips.map((t) => <TripCard key={t.tripId} trip={t} />)}
+              {[...trips].sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime())
+                .map((t) => <TripCard key={t.tripId} trip={t} />)}
             </div>
           </>
         )}

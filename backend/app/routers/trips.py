@@ -109,7 +109,7 @@ async def update_trip(trip_id: str, body: TripUpdate, current_user: dict = Depen
     if not data:
         raise HTTPException(status_code=404, detail="Trip not found")
     require_trip_owner(data, current_user["uid"])
-    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    updates = body.model_dump(exclude_unset=True)
     updates["updatedAt"] = datetime.now(timezone.utc)
     if "destination" in updates:
         updates["destinationCurrency"] = _resolve_currency(updates["destination"])
@@ -151,7 +151,7 @@ async def duplicate_trip(trip_id: str, current_user: dict = Depends(get_current_
 
 
 @router.delete("/{trip_id}")
-async def delete_trip(trip_id: str, current_user: dict = Depends(get_current_user)):
+async def archive_trip(trip_id: str, current_user: dict = Depends(get_current_user)):
     db = get_db()
     doc = db.collection("trips").document(trip_id).get()
     data = doc_to_dict(doc)
@@ -159,6 +159,25 @@ async def delete_trip(trip_id: str, current_user: dict = Depends(get_current_use
         raise HTTPException(status_code=404, detail="Trip not found")
     require_trip_owner(data, current_user["uid"])
     db.collection("trips").document(trip_id).update({"status": "archived"})
+    return {"ok": True}
+
+
+@router.delete("/{trip_id}/permanent")
+async def delete_trip_permanent(trip_id: str, current_user: dict = Depends(get_current_user)):
+    db = get_db()
+    doc = db.collection("trips").document(trip_id).get()
+    data = doc_to_dict(doc)
+    if not data:
+        raise HTTPException(status_code=404, detail="Trip not found")
+    require_trip_owner(data, current_user["uid"])
+
+    trip_ref = db.collection("trips").document(trip_id)
+    for subcol in ("expenses", "settlements"):
+        docs = trip_ref.collection(subcol).stream()
+        for d in docs:
+            d.reference.delete()
+
+    trip_ref.delete()
     return {"ok": True}
 
 

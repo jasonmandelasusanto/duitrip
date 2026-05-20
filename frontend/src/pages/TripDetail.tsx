@@ -87,6 +87,65 @@ export default function TripDetail() {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [payerFilter, setPayerFilter] = useState('');
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteInput, setDeleteInput] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editStartDate, setEditStartDate] = useState('');
+  const [editEndDate, setEditEndDate] = useState('');
+  const [editBudget, setEditBudget] = useState('');
+  const [editBudgetCurrency, setEditBudgetCurrency] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const isOwner = trip?.members.some((m) => m.userId === user?.uid && m.role === 'owner');
+
+  function openEditModal() {
+    if (!trip) return;
+    setEditName(trip.name);
+    setEditStartDate(trip.startDate);
+    setEditEndDate(trip.endDate);
+    setEditBudget(trip.budget != null ? String(trip.budget) : '');
+    setEditBudgetCurrency(trip.budgetCurrency || trip.destinationCurrency);
+    setShowEditModal(true);
+  }
+
+  async function handleSaveTrip() {
+    if (!tripId || !editName.trim() || !editStartDate || !editEndDate) return;
+    setSaving(true);
+    try {
+      const budgetVal = editBudget.trim() === '' ? null : parseFloat(editBudget);
+      await import('../services/api').then(({ default: api }) =>
+        api.patch(`/trips/${tripId}`, {
+          name: editName.trim(),
+          startDate: editStartDate,
+          endDate: editEndDate,
+          budget: budgetVal,
+          ...(budgetVal != null && { budgetCurrency: editBudgetCurrency.toUpperCase() }),
+          ...(budgetVal == null && { budgetCurrency: null }),
+        }),
+      );
+      setShowEditModal(false);
+    } catch {
+      alert('Failed to save changes. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handlePermanentDelete() {
+    if (!tripId || deleteInput !== 'delete') return;
+    setDeleting(true);
+    try {
+      await import('../services/api').then(({ default: api }) =>
+        api.delete(`/trips/${tripId}/permanent`),
+      );
+      navigate('/dashboard');
+    } catch {
+      alert('Failed to delete trip. Please try again.');
+      setDeleting(false);
+    }
+  }
 
   const totalSpend = useMemo(
     () => expenses.reduce((s, e) => s + e.amountInDestinationCurrency, 0),
@@ -155,7 +214,7 @@ export default function TripDetail() {
       {/* Mobile layout */}
       <div className="lg:hidden max-w-lg mx-auto px-4 pt-6 pb-24">
         <button onClick={() => navigate('/dashboard')} className="text-text-secondary text-sm mb-4 hover:text-text-primary">← Dashboard</button>
-        <TripHeader trip={trip} totalSpend={totalSpend} myShare={myShare} myShareHome={myShareHome} myHomeCurrency={user?.homeCurrency} budgetInDestCurrency={budgetInDestCurrency} />
+        <TripHeader trip={trip} totalSpend={totalSpend} myShare={myShare} myShareHome={myShareHome} myHomeCurrency={user?.homeCurrency} budgetInDestCurrency={budgetInDestCurrency} onEdit={isOwner ? openEditModal : undefined} />
         <div className="flex bg-bg-surface border border-bg-border rounded-xl p-1 gap-1 mb-4">
           {tabs.map((tab) => (
             <Link key={tab.label} to={tab.path}
@@ -176,7 +235,96 @@ export default function TripDetail() {
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2">
           <Link to={`/trips/${tripId}/expenses/new`}><Button size="lg" className="shadow-lg shadow-teal/20">+ Add Expense</Button></Link>
         </div>
+        {isOwner && (
+          <div className="mt-6 pt-6 border-t border-bg-border">
+            <p className="text-xs text-text-muted font-semibold uppercase tracking-wider mb-3">Danger Zone</p>
+            <button onClick={() => { setDeleteInput(''); setShowDeleteModal(true); }}
+              className="w-full py-2.5 rounded-xl border border-danger/40 text-danger text-sm font-medium hover:bg-danger/10 transition-colors">
+              Delete Trip
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Edit trip modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="bg-bg-surface border border-bg-border rounded-2xl p-6 w-full max-w-sm shadow-xl">
+            <h2 className="text-lg font-bold text-text-primary mb-4">Edit Trip</h2>
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="block text-xs text-text-muted mb-1">Trip name</label>
+                <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)}
+                  className="w-full bg-bg-elevated border border-bg-border rounded-xl px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-teal" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs text-text-muted mb-1">Start date</label>
+                  <input type="date" value={editStartDate} onChange={(e) => setEditStartDate(e.target.value)}
+                    className="w-full bg-bg-elevated border border-bg-border rounded-xl px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-teal" />
+                </div>
+                <div>
+                  <label className="block text-xs text-text-muted mb-1">End date</label>
+                  <input type="date" value={editEndDate} onChange={(e) => setEditEndDate(e.target.value)}
+                    className="w-full bg-bg-elevated border border-bg-border rounded-xl px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-teal" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-text-muted mb-1">Budget per person <span className="text-text-muted">(leave empty to remove)</span></label>
+                <div className="flex gap-2">
+                  <input type="number" min="0" value={editBudget} onChange={(e) => setEditBudget(e.target.value)}
+                    placeholder="0"
+                    className="flex-1 bg-bg-elevated border border-bg-border rounded-xl px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-teal" />
+                  <input type="text" value={editBudgetCurrency} onChange={(e) => setEditBudgetCurrency(e.target.value.toUpperCase().slice(0, 3))}
+                    placeholder="SGD"
+                    className="w-20 bg-bg-elevated border border-bg-border rounded-xl px-3 py-2 text-sm text-text-primary font-mono text-center focus:outline-none focus:border-teal" />
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-5">
+              <button onClick={() => setShowEditModal(false)} disabled={saving}
+                className="flex-1 py-2.5 rounded-xl border border-bg-border text-text-secondary text-sm hover:bg-bg-elevated transition-colors">
+                Cancel
+              </button>
+              <button onClick={handleSaveTrip} disabled={!editName.trim() || !editStartDate || !editEndDate || saving}
+                className="flex-1 py-2.5 rounded-xl bg-teal text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-teal/90 transition-colors">
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="bg-bg-surface border border-bg-border rounded-2xl p-6 w-full max-w-sm shadow-xl">
+            <h2 className="text-lg font-bold text-text-primary mb-1">Delete Trip</h2>
+            <p className="text-sm text-text-secondary mb-4">
+              This will permanently delete <span className="font-semibold text-text-primary">{trip.name}</span> and all its expenses and settlements. This cannot be undone.
+            </p>
+            <p className="text-sm text-text-muted mb-2">Type <span className="font-mono font-bold text-danger">delete</span> to confirm:</p>
+            <input
+              type="text"
+              value={deleteInput}
+              onChange={(e) => setDeleteInput(e.target.value)}
+              placeholder="delete"
+              className="w-full bg-bg-elevated border border-bg-border rounded-xl px-3 py-2 text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-danger mb-4"
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <button onClick={() => setShowDeleteModal(false)} disabled={deleting}
+                className="flex-1 py-2.5 rounded-xl border border-bg-border text-text-secondary text-sm hover:bg-bg-elevated transition-colors">
+                Cancel
+              </button>
+              <button onClick={handlePermanentDelete} disabled={deleteInput !== 'delete' || deleting}
+                className="flex-1 py-2.5 rounded-xl bg-danger text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-danger/90 transition-colors">
+                {deleting ? 'Deleting…' : 'Delete Forever'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Desktop layout — left panel + right content */}
       <div className="hidden lg:flex min-h-screen">
@@ -184,7 +332,7 @@ export default function TripDetail() {
         <div className="w-80 shrink-0 border-r border-bg-border bg-bg-surface flex flex-col sticky top-0 h-screen overflow-y-auto">
           <div className="p-5">
             <button onClick={() => navigate('/dashboard')} className="text-text-secondary text-sm mb-4 hover:text-text-primary block">← All Trips</button>
-            <TripHeader trip={trip} totalSpend={totalSpend} myShare={myShare} myShareHome={myShareHome} myHomeCurrency={user?.homeCurrency} budgetInDestCurrency={budgetInDestCurrency} />
+            <TripHeader trip={trip} totalSpend={totalSpend} myShare={myShare} myShareHome={myShareHome} myHomeCurrency={user?.homeCurrency} budgetInDestCurrency={budgetInDestCurrency} onEdit={isOwner ? openEditModal : undefined} />
           </div>
           {/* Vertical tabs */}
           <nav className="px-3 pb-3 flex flex-col gap-1">
@@ -202,8 +350,14 @@ export default function TripDetail() {
               <BalanceCard balance={balance} myNet={myNet} trip={trip} formatCurrency={formatCurrency} />
             </div>
           )}
-          <div className="mt-auto p-3 border-t border-bg-border">
+          <div className="mt-auto p-3 space-y-2 border-t border-bg-border">
             <Link to={`/trips/${tripId}/expenses/new`}><Button size="sm" className="w-full">+ Add Expense</Button></Link>
+            {isOwner && (
+              <button onClick={() => { setDeleteInput(''); setShowDeleteModal(true); }}
+                className="w-full py-2 rounded-xl border border-danger/40 text-danger text-xs font-medium hover:bg-danger/10 transition-colors">
+                Delete Trip
+              </button>
+            )}
           </div>
         </div>
 

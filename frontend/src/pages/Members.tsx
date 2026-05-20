@@ -37,6 +37,9 @@ export default function Members() {
   const [promoteGhostId, setPromoteGhostId] = useState<string | null>(null);
   const [promoteEmail, setPromoteEmail] = useState('');
   const [removeTargetId, setRemoveTargetId] = useState<string | null>(null);
+  const [editGhostId, setEditGhostId] = useState<string | null>(null);
+  const [editGhostName, setEditGhostName] = useState('');
+  const [editGhostCurrency, setEditGhostCurrency] = useState('');
 
   if (!trip) return <div className="min-h-screen bg-bg-base flex items-center justify-center text-text-muted">Loading…</div>;
 
@@ -69,6 +72,18 @@ export default function Members() {
     await api.delete(`/trips/${tripId}/members/${targetId}`);
   }
 
+  async function saveEditGhost() {
+    if (!tripId || !editGhostId || !editGhostName.trim()) return;
+    setLoading(true);
+    try {
+      await api.patch(`/trips/${tripId}/members/ghost/${editGhostId}`, {
+        displayName: editGhostName.trim(),
+        homeCurrency: editGhostCurrency.toUpperCase(),
+      });
+      setEditGhostId(null);
+    } finally { setLoading(false); }
+  }
+
   async function promoteGhost() {
     if (!tripId || !promoteGhostId || !promoteEmail) return;
     setLoading(true);
@@ -85,6 +100,7 @@ export default function Members() {
         members={trip.members}
         ownerId={trip.createdBy}
         isOwner={isOwner}
+        onEditGhost={isOwner ? (id, name, cur) => { setEditGhostId(id); setEditGhostName(name); setEditGhostCurrency(cur); } : undefined}
         onPromoteGhost={(ghostId) => setPromoteGhostId(ghostId)}
         onRemoveMember={isOwner ? (id) => setRemoveTargetId(id) : undefined}
       />
@@ -151,6 +167,14 @@ export default function Members() {
           </div>
         </div>
       </div>
+
+      <Modal open={!!editGhostId} onClose={() => setEditGhostId(null)} title="Edit Buddy">
+        <Input label="Name" value={editGhostName} onChange={(e) => setEditGhostName(e.target.value)} />
+        <div className="mt-3">
+          <Input label="Home currency" value={editGhostCurrency} onChange={(e) => setEditGhostCurrency(e.target.value.toUpperCase())} maxLength={3} />
+        </div>
+        <Button className="w-full mt-4" onClick={saveEditGhost} disabled={!editGhostName.trim() || loading}>Save</Button>
+      </Modal>
 
       <Modal open={inviteModal} onClose={() => setInviteModal(false)} title="Invite Member">
         <Input label="Email address" type="email" placeholder="friend@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
