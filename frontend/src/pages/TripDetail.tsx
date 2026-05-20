@@ -97,6 +97,7 @@ export default function TripDetail() {
   const [editBudget, setEditBudget] = useState('');
   const [editBudgetCurrency, setEditBudgetCurrency] = useState('');
   const [saving, setSaving] = useState(false);
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
   const isOwner = trip?.members.some((m) => m.userId === user?.uid && m.role === 'owner');
 
@@ -190,13 +191,17 @@ export default function TripDetail() {
   }, [trip?.budget, trip?.budgetCurrency, trip?.destinationCurrency, rates]);
 
   const filteredExpenses = useMemo(() => {
-    return expenses.filter((e) => {
+    const filtered = expenses.filter((e) => {
       if (search && !e.description.toLowerCase().includes(search.toLowerCase())) return false;
       if (categoryFilter && e.category !== categoryFilter) return false;
       if (payerFilter && e.paidBy !== payerFilter) return false;
       return true;
     });
-  }, [expenses, search, categoryFilter, payerFilter]);
+    return [...filtered].sort((a, b) => {
+      const diff = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      return sortOrder === 'desc' ? -diff : diff;
+    });
+  }, [expenses, search, categoryFilter, payerFilter, sortOrder]);
 
   if (loading || !trip) return <div className="min-h-screen bg-bg-base flex items-center justify-center text-text-muted">Loading…</div>;
 
@@ -228,6 +233,7 @@ export default function TripDetail() {
           categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter}
           payerFilter={payerFilter} setPayerFilter={setPayerFilter}
           showExportMenu={showExportMenu} setShowExportMenu={setShowExportMenu}
+          sortOrder={sortOrder} setSortOrder={setSortOrder}
           expenses={expenses} filteredExpenses={filteredExpenses}
           trip={trip} tripId={tripId!}
           exportExpensesCSV={exportExpensesCSV} exportSummaryCSV={exportSummaryCSV}
@@ -368,6 +374,7 @@ export default function TripDetail() {
             categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter}
             payerFilter={payerFilter} setPayerFilter={setPayerFilter}
             showExportMenu={showExportMenu} setShowExportMenu={setShowExportMenu}
+            sortOrder={sortOrder} setSortOrder={setSortOrder}
             expenses={expenses} filteredExpenses={filteredExpenses}
             trip={trip} tripId={tripId!}
             exportExpensesCSV={exportExpensesCSV} exportSummaryCSV={exportSummaryCSV}
@@ -412,12 +419,13 @@ function BalanceCard({ balance, myNet, trip, formatCurrency }: {
 }
 
 function FiltersAndList({ search, setSearch, categoryFilter, setCategoryFilter, payerFilter, setPayerFilter,
-  showExportMenu, setShowExportMenu, expenses, filteredExpenses, trip, tripId,
+  showExportMenu, setShowExportMenu, sortOrder, setSortOrder, expenses, filteredExpenses, trip, tripId,
   exportExpensesCSV, exportSummaryCSV }: {
   search: string; setSearch: (v: string) => void;
   categoryFilter: string; setCategoryFilter: (v: string) => void;
   payerFilter: string; setPayerFilter: (v: string) => void;
   showExportMenu: boolean; setShowExportMenu: (v: boolean) => void;
+  sortOrder: 'desc' | 'asc'; setSortOrder: (v: 'desc' | 'asc') => void;
   expenses: import('../types').Expense[];
   filteredExpenses: import('../types').Expense[];
   trip: import('../types').Trip;
@@ -432,6 +440,11 @@ function FiltersAndList({ search, setSearch, categoryFilter, setCategoryFilter, 
           <input type="search" placeholder="Search expenses…" value={search} onChange={(e) => setSearch(e.target.value)}
             className="flex-1 bg-bg-surface border border-bg-border rounded-xl px-3 py-2 text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-teal"
           />
+          <button onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
+            title={sortOrder === 'desc' ? 'Oldest first' : 'Newest first'}
+            className="px-3 py-2 bg-bg-surface border border-bg-border rounded-xl text-sm text-text-secondary hover:border-teal/50 transition-colors">
+            {sortOrder === 'desc' ? '↓ Date' : '↑ Date'}
+          </button>
           <div className="relative">
             <button onClick={() => setShowExportMenu(!showExportMenu)}
               className="px-3 py-2 bg-bg-surface border border-bg-border rounded-xl text-sm text-text-secondary hover:border-teal/50 transition-colors">

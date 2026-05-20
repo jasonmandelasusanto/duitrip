@@ -99,6 +99,7 @@ export interface ImportRow {
   originalAmount: number;
   originalCurrency: string;
   splitMode: string;
+  splitMemberIds?: string[];
   notes: string;
   valid: boolean;
   errors: string[];
@@ -168,6 +169,18 @@ export function parseImportXLSX(file: File, trips: Trip[]): Promise<ImportRow[]>
           const description = String(row['Description'] || '').trim();
           if (!description) errors.push('Description missing');
 
+          const splitBetweenRaw = String(row['Split Between'] || '').trim();
+          let splitMemberIds: string[] | undefined;
+          if (splitBetweenRaw && matchedTrip) {
+            const names = splitBetweenRaw.split('|').map((s) => s.trim()).filter(Boolean);
+            splitMemberIds = names.flatMap((name) => {
+              const m = matchedTrip.members.find(
+                (m) => m.displayName.trim().toLowerCase() === name.toLowerCase(),
+              );
+              return m ? [(m.userId || m.ghostId)!] : [];
+            });
+          }
+
           return {
             tripName,
             tripId: matchedTrip?.tripId,
@@ -179,6 +192,7 @@ export function parseImportXLSX(file: File, trips: Trip[]): Promise<ImportRow[]>
             originalAmount: isNaN(originalAmount) ? 0 : originalAmount,
             originalCurrency: String(row['Original Currency'] || '').trim(),
             splitMode: String(row['Split Mode'] || 'equal').trim(),
+            splitMemberIds,
             notes: String(row['Notes'] || '').trim(),
             valid: errors.length === 0,
             errors,

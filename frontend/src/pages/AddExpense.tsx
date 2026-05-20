@@ -42,6 +42,7 @@ export default function AddExpense() {
   const [preview, setPreview] = useState<number | null>(null);
   const [receiptDataUrl, setReceiptDataUrl] = useState<string | null>(null);
   const [receiptLoading, setReceiptLoading] = useState(false);
+  const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set());
   const [customRateEnabled, setCustomRateEnabled] = useState(false);
   const [customRate, setCustomRate] = useState('');
   const [offline, setOffline] = useState(!navigator.onLine);
@@ -75,6 +76,7 @@ export default function AddExpense() {
       setNotes(e.notes || '');
       setSplitMode(e.splitMode);
       if (e.receiptUrl) setReceiptDataUrl(e.receiptUrl);
+      setSelectedMembers(new Set((e.splits as { userId: string }[]).map((s) => s.userId)));
       if (e.splitMode === 'percentage') {
         const pct: Record<string, string> = {};
         e.splits.forEach((s: { userId: string; percentage?: number }) => {
@@ -94,6 +96,7 @@ export default function AddExpense() {
   useEffect(() => {
     if (trip && !isEdit) {
       setCurrency(trip.destinationCurrency);
+      setSelectedMembers(new Set(trip.members.map((m) => (m.userId || m.ghostId)!)));
     }
   }, [trip, isEdit]);
 
@@ -128,23 +131,25 @@ export default function AddExpense() {
     ...(trip?.customCategories || []).map((c) => ({ name: c.name, emoji: c.emoji })),
   ];
 
-  const totalPct = Object.values(percentages).reduce((s, v) => s + (parseFloat(v) || 0), 0);
+  const involvedMembers = members.filter((m) => selectedMembers.has((m.userId || m.ghostId)!));
+  const totalPct = involvedMembers.reduce((s, m) => s + (parseFloat(percentages[(m.userId || m.ghostId)!] || '0') || 0), 0);
 
   async function handleSubmit() {
     if (!tripId || !trip) return;
     setLoading(true);
     try {
       let splits: Array<{ userId: string; percentage?: number; exactAmount?: number; exactCurrency?: string }> = [];
+      const involvedMembers = members.filter((m) => selectedMembers.has((m.userId || m.ghostId)!));
 
       if (splitMode === 'equal') {
-        splits = members.map((m) => ({ userId: (m.userId || m.ghostId)! }));
+        splits = involvedMembers.map((m) => ({ userId: (m.userId || m.ghostId)! }));
       } else if (splitMode === 'percentage') {
-        splits = members.map((m) => ({
+        splits = involvedMembers.map((m) => ({
           userId: (m.userId || m.ghostId)!,
           percentage: parseFloat(percentages[(m.userId || m.ghostId)!] || '0'),
         }));
       } else {
-        splits = members.map((m) => ({
+        splits = involvedMembers.map((m) => ({
           userId: (m.userId || m.ghostId)!,
           exactAmount: parseFloat(exactAmounts[(m.userId || m.ghostId)!] || '0'),
           exactCurrency: trip.destinationCurrency,
@@ -184,7 +189,7 @@ export default function AddExpense() {
 
   if (!trip) return <div className="min-h-screen bg-bg-base flex items-center justify-center text-text-muted">Loading…</div>;
 
-  const valid = description && amount && parseFloat(amount) > 0 && paidBy &&
+  const valid = description && amount && parseFloat(amount) > 0 && paidBy && selectedMembers.size > 0 &&
     (splitMode !== 'percentage' || Math.abs(totalPct - 100) < 0.01);
 
   return (
@@ -302,6 +307,25 @@ export default function AddExpense() {
           </div>
 
           <div>
+            <label className="text-sm text-text-secondary block mb-2">Split between</label>
+            <div className="flex flex-col gap-1">
+              {members.map((m) => {
+                const uid = (m.userId || m.ghostId)!;
+                const checked = selectedMembers.has(uid);
+                return (
+                  <label key={uid} className={`flex items-center gap-3 border rounded-lg px-3 py-2 cursor-pointer transition-colors ${checked ? 'bg-teal/10 border-teal/40' : 'bg-bg-surface border-bg-border'}`}>
+                    <input type="checkbox" checked={checked}
+                      onChange={() => setSelectedMembers((prev) => { const next = new Set(prev); if (next.has(uid)) next.delete(uid); else next.add(uid); return next; })}
+                      className="accent-teal" />
+                    <span className="text-sm text-text-secondary">{m.displayName}{m.role === 'ghost' ? ' 👻' : ''}</span>
+                  </label>
+                );
+              })}
+            </div>
+            {selectedMembers.size === 0 && <p className="text-xs text-warning mt-1">Select at least one member.</p>}
+          </div>
+
+          <div>
             <label className="text-sm text-text-secondary block mb-2">Split</label>
             <div className="flex gap-2 mb-3">
               {(['equal', 'percentage', 'exact'] as SplitMode[]).map((mode) => (
@@ -319,9 +343,9 @@ export default function AddExpense() {
 
             {splitMode === 'equal' && (
               <div className="flex flex-col gap-1">
-                {members.map((m) => {
+                {involvedMembers.map((m) => {
                   const uid = (m.userId || m.ghostId)!;
-                  const share = amount ? parseFloat(amount) / members.length : 0;
+                  const share = amount && involvedMembers.length > 0 ? parseFloat(amount) / involvedMembers.length : 0;
                   return (
                     <div key={uid} className="flex items-center justify-between text-sm bg-bg-surface border border-bg-border rounded-lg px-3 py-2">
                       <span className="text-text-secondary">{m.displayName}{m.role === 'ghost' ? ' 👻' : ''}</span>
@@ -334,7 +358,7 @@ export default function AddExpense() {
 
             {splitMode === 'percentage' && (
               <div className="flex flex-col gap-2">
-                {members.map((m) => {
+                {involvedMembers.map((m) => {
                   const uid = (m.userId || m.ghostId)!;
                   return (
                     <div key={uid} className="flex items-center gap-2">
@@ -359,7 +383,7 @@ export default function AddExpense() {
 
             {splitMode === 'exact' && (
               <div className="flex flex-col gap-2">
-                {members.map((m) => {
+                {involvedMembers.map((m) => {
                   const uid = (m.userId || m.ghostId)!;
                   return (
                     <div key={uid} className="flex items-center gap-2">

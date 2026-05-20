@@ -124,7 +124,9 @@ export default function Profile() {
           originalCurrency: row.originalCurrency,
           expenseDate: row.date || undefined,
           splitMode: 'equal',
-          splits: [],
+          splits: row.splitMemberIds && row.splitMemberIds.length > 0
+            ? row.splitMemberIds.map((id) => ({ userId: id }))
+            : [],
           notes: row.notes || null,
         });
         ok++;
