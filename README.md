@@ -64,7 +64,7 @@ The emulator automatically imports seed data from `firebase/.emulator-data` on s
 To re-seed from scratch:
 
 ```bash
-node firebase/seed.js
+docker exec -it duitrip-firebase-emulator-1 node /app/seed.js
 ```
 
 ### Test accounts
@@ -89,6 +89,8 @@ VITE_FIREBASE_MESSAGING_SENDER_ID=000000000000
 VITE_FIREBASE_APP_ID=1:000000000000:web:000000000000000000000000
 VITE_API_BASE_URL=http://localhost:8001
 VITE_USE_FIREBASE_EMULATOR=true
+VITE_FIRESTORE_EMULATOR_HOST=localhost:8080
+VITE_AUTH_EMULATOR_HOST=http://localhost:9099
 VITE_TURNSTILE_SITE_KEY=       # leave empty to skip CAPTCHA locally
 ```
 
@@ -173,6 +175,11 @@ All endpoints are prefixed with `/api`. Auth requires a Firebase ID token in the
 | GET | `/api/notifications` | List in-app notifications for current user |
 | POST | `/api/notifications/read-all` | Mark all notifications as read |
 | DELETE | `/api/notifications/:id` | Dismiss a notification |
+| POST | `/api/trips/:id/categories` | Add a custom category |
+| DELETE | `/api/trips/:id/categories/:cid` | Remove a custom category |
+| POST | `/api/trips/:id/expenses/:eid/comments` | Add a comment to an expense |
+| DELETE | `/api/trips/:id/expenses/:eid/comments/:coid` | Delete a comment |
+| DELETE | `/api/trips/:id` | Archive a trip (soft delete) |
 | GET | `/health` | Health check (no auth) |
 
 Interactive docs: http://localhost:8001/api/docs
@@ -214,8 +221,16 @@ Then connect your GitHub repo in the Cloud Build console and set the `_VITE_FIRE
 cd backend
 pip install -r requirements.txt pytest pytest-asyncio
 pytest tests/ -v
+
+# Frontend unit tests (requires Node ≥20.12)
+cd frontend
+npm test
+
+# Frontend type-check
+cd frontend
+npx tsc --noEmit
 ```
 
 ## License
 
-MIT
+Proprietary. All rights reserved.
