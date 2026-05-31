@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from app.dependencies import get_current_user
 from app.models.settlement import SettlementCreate
 from app.services.firestore import get_db, doc_to_dict, stream_docs
-from app.services.settlement import calculate_balances, simplify_debts, bilateral_debts
+from app.services.settlement import calculate_balances, bilateral_debts
 from app.services import exchange_rates as fx_service
 from app.utils.validators import require_trip_member
 
