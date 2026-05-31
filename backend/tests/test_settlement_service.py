@@ -1,5 +1,5 @@
 import pytest
-from app.services.settlement import calculate_balances, simplify_debts
+from app.services.settlement import calculate_balances, simplify_debts, bilateral_debts
 from app.services.currency import calculate_equal_splits
 
 # ── Yogyakarta integration fixture ────────────────────────────────────────────
@@ -464,3 +464,140 @@ class TestYogyakartaIntegration:
         b2 = calculate_balances(expenses, stls)
         for uid, bal in b2.items():
             assert abs(bal) < 0.01, f"{uid} not settled: {bal}"
+
+
+# ── bilateral_debts ────────────────────────────────────────────────────────────
+
+class TestBilateralDebts:
+    def _exp(self, paid_by, total, splits):
+        return {
+            "paidBy": paid_by,
+            "amountInDestinationCurrency": total,
+            "splits": [{"userId": u, "amountInDestinationCurrency": a} for u, a in splits],
+        }
+
+    def test_two_members_simple(self):
+        """Alice paid 100, split equally → Bob owes Alice 50."""
+        exp = self._exp("alice", 100, [("alice", 50), ("bob", 50)])
+        txs = bilateral_debts([exp], [])
+        assert len(txs) == 1
+        assert txs[0]["from"] == "bob"
+        assert txs[0]["to"] == "alice"
+        assert abs(txs[0]["amount"] - 50) < 0.01
+
+    def test_cross_payments_net_to_one(self):
+        """Alice paid 100 for Bob; Bob paid 60 for Alice. Net: Bob owes Alice 40."""
+        exp1 = self._exp("alice", 100, [("bob", 100)])
+        exp2 = self._exp("bob", 60, [("alice", 60)])
+        txs = bilateral_debts([exp1, exp2], [])
+        assert len(txs) == 1
+        assert txs[0]["from"] == "bob"
+        assert txs[0]["to"] == "alice"
+        assert abs(txs[0]["amount"] - 40) < 0.01
+
+    def test_payer_not_in_splits_bilateral(self):
+        """Alice paid 100 for Bob only. Bob owes Alice 100."""
+        exp = self._exp("alice", 100, [("bob", 100)])
+        txs = bilateral_debts([exp], [])
+        assert len(txs) == 1
+        assert txs[0]["from"] == "bob"
+        assert txs[0]["to"] == "alice"
+        assert abs(txs[0]["amount"] - 100) < 0.01
+
+    def test_yogya_breakfast_and_extra_bed(self):
+        """
+        Aditya paid breakfast (356,399) for Danny+Aditya.
+        Danny paid extra bed (400,000) for Aditya only.
+        Net: Aditya owes Danny 221,800.50
+        (This is the real Yogyakarta scenario the user reported.)
+        """
+        breakfast = calculate_equal_splits(356_399, ["danny", "aditya"], "aditya")
+        exp1 = self._exp("aditya", 356_399,
+                         [(s["userId"], s["amountInDestinationCurrency"]) for s in breakfast])
+        exp2 = self._exp("danny", 400_000, [("aditya", 400_000)])
+
+        txs = bilateral_debts([exp1, exp2], [])
+        assert len(txs) == 1
+        assert txs[0]["from"] == "aditya"
+        assert txs[0]["to"] == "danny"
+        # 400,000 - 178,199.50 = 221,800.50
+        assert abs(txs[0]["amount"] - 221_800.50) < 1
+
+    def test_three_members_preserves_bilateral_relationship(self):
+        """
+        Three members. Jason, Aditya, Danny.
+        Breakfast (Aditya paid, Danny+Aditya only) and Extra Bed (Danny paid, Aditya only).
+        Plus a shared expense (Jason paid all 3).
+        The Aditya-Danny bilateral must appear regardless of Jason's involvement.
+        """
+        breakfast = calculate_equal_splits(356_399, ["danny", "aditya"], "aditya")
+        exp1 = self._exp("aditya", 356_399,
+                         [(s["userId"], s["amountInDestinationCurrency"]) for s in breakfast])
+        exp2 = self._exp("danny", 400_000, [("aditya", 400_000)])
+        # Shared dinner: Jason paid 300,000 equally split all 3
+        dinner = calculate_equal_splits(300_000, ["jason", "aditya", "danny"], "jason")
+        exp3 = self._exp("jason", 300_000,
+                         [(s["userId"], s["amountInDestinationCurrency"]) for s in dinner])
+
+        txs = bilateral_debts([exp1, exp2, exp3], [])
+
+        # Aditya-Danny bilateral must be present
+        aditya_danny = next(
+            (t for t in txs if {t["from"], t["to"]} == {"aditya", "danny"}), None
+        )
+        assert aditya_danny is not None, "Aditya-Danny transaction missing"
+        assert aditya_danny["from"] == "aditya"
+        assert aditya_danny["to"] == "danny"
+        assert abs(aditya_danny["amount"] - 221_800.50) < 1
+
+        # Jason-Aditya and Jason-Danny bilaterals must also be present
+        jason_aditya = next(
+            (t for t in txs if {t["from"], t["to"]} == {"jason", "aditya"}), None
+        )
+        assert jason_aditya is not None, "Jason-Aditya transaction missing"
+
+        jason_danny = next(
+            (t for t in txs if {t["from"], t["to"]} == {"jason", "danny"}), None
+        )
+        assert jason_danny is not None, "Jason-Danny transaction missing"
+
+    def test_already_settled_pair_disappears(self):
+        """After Aditya pays Danny 221,800, their bilateral should be zero."""
+        breakfast = calculate_equal_splits(356_399, ["danny", "aditya"], "aditya")
+        exp1 = self._exp("aditya", 356_399,
+                         [(s["userId"], s["amountInDestinationCurrency"]) for s in breakfast])
+        exp2 = self._exp("danny", 400_000, [("aditya", 400_000)])
+
+        settlement = {"fromUserId": "aditya", "toUserId": "danny",
+                      "amountInDestinationCurrency": 221_800.50}
+        txs = bilateral_debts([exp1, exp2], [settlement])
+        assert all({t["from"], t["to"]} != {"aditya", "danny"} for t in txs)
+
+    def test_all_settled_no_transactions(self):
+        exp = self._exp("alice", 100, [("alice", 50), ("bob", 50)])
+        stl = {"fromUserId": "bob", "toUserId": "alice", "amountInDestinationCurrency": 50}
+        txs = bilateral_debts([exp], [stl])
+        assert txs == []
+
+    def test_net_conservation(self):
+        """Sum of (from debits) must equal sum of (to credits) per member."""
+        breakfast = calculate_equal_splits(356_399, ["danny", "aditya"], "aditya")
+        exp1 = self._exp("aditya", 356_399,
+                         [(s["userId"], s["amountInDestinationCurrency"]) for s in breakfast])
+        exp2 = self._exp("danny", 400_000, [("aditya", 400_000)])
+        dinner = calculate_equal_splits(300_000, ["jason", "aditya", "danny"], "jason")
+        exp3 = self._exp("jason", 300_000,
+                         [(s["userId"], s["amountInDestinationCurrency"]) for s in dinner])
+
+        txs = bilateral_debts([exp1, exp2, exp3], [])
+
+        # Net flow per member from bilateral transactions must match calculate_balances
+        balances = calculate_balances([exp1, exp2, exp3], [])
+        net_from_txs = {m: 0.0 for m in balances}
+        for t in txs:
+            net_from_txs[t["from"]] = net_from_txs.get(t["from"], 0) - t["amount"]
+            net_from_txs[t["to"]]   = net_from_txs.get(t["to"], 0)   + t["amount"]
+
+        for member, bal in balances.items():
+            assert abs(net_from_txs.get(member, 0) - bal) < 0.05, \
+                f"{member}: balance={bal:.2f}, bilateral net={net_from_txs.get(member,0):.2f}"

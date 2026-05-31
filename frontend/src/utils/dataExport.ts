@@ -22,7 +22,8 @@ export async function exportAllData(trips: Trip[], api: AxiosInstance): Promise<
   // ── Expenses sheet ─────────────────────────────────────────────
   const expenseRows: unknown[][] = [
     ['Trip', 'Trip Currency', 'Date', 'Description', 'Category', 'Paid By',
-     'Original Amount', 'Original Currency', 'Amount (trip currency)', 'Split Mode', 'Notes'],
+     'Original Amount', 'Original Currency', 'Amount (trip currency)', 'Split Mode',
+     'Split Between', 'Notes'],
   ];
 
   for (const { trip, expenses } of tripData) {
@@ -33,6 +34,10 @@ export async function exportAllData(trips: Trip[], api: AxiosInstance): Promise<
       const rawDate =
         (e.expenseDate as string) ||
         (e.createdAt ? (e.createdAt as string).slice(0, 10) : '');
+      const splits = (e.splits as Array<{ userId: string }>) || [];
+      const splitBetween = splits
+        .map((s) => memberMap[s.userId] || s.userId)
+        .join('|');
       expenseRows.push([
         trip.name,
         trip.destinationCurrency,
@@ -44,6 +49,7 @@ export async function exportAllData(trips: Trip[], api: AxiosInstance): Promise<
         e.originalCurrency,
         (e.amountInDestinationCurrency as number).toFixed(2),
         e.splitMode,
+        splitBetween,
         e.notes || '',
       ]);
     }

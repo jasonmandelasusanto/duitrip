@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from app.dependencies import get_current_user
 from app.models.settlement import SettlementCreate
 from app.services.firestore import get_db, doc_to_dict, stream_docs
-from app.services.settlement import calculate_balances, simplify_debts
+from app.services.settlement import calculate_balances, simplify_debts, bilateral_debts
 from app.services import exchange_rates as fx_service
 from app.utils.validators import require_trip_member
 
@@ -34,7 +34,7 @@ async def get_settlement(trip_id: str, current_user: dict = Depends(get_current_
     )
 
     balances = calculate_balances(expenses, settlements_raw)
-    transactions = simplify_debts(balances)
+    transactions = bilateral_debts(expenses, settlements_raw)
 
     dest_currency = trip["destinationCurrency"]
     members = trip.get("members", [])

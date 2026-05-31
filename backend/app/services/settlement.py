@@ -28,6 +28,58 @@ def calculate_balances(expenses: list[dict], settlements: list[dict]) -> dict[st
     return balances
 
 
+def bilateral_debts(expenses: list[dict], settlements: list[dict]) -> list[dict]:
+    """
+    Compute net pairwise flows between every pair of members.
+    For each pair (A, B) the gross amounts A owes B and B owes A are netted,
+    producing one transaction per pair that has an outstanding balance.
+    This preserves real-world relationships (e.g. Aditya↔Danny from a shared
+    breakfast and extra bed) instead of routing everything through a single debtor.
+    """
+    from collections import defaultdict
+
+    # pair_flows[(debtor, creditor)] = gross amount debtor owes creditor (from expenses)
+    pair_flows: dict[tuple, float] = defaultdict(float)
+
+    for exp in expenses:
+        payer = exp.get("paidBy")
+        for split in exp.get("splits", []):
+            uid = split.get("userId")
+            if uid == payer:
+                continue  # payer's own share creates no inter-person debt
+            amount = split.get("amountInDestinationCurrency", 0)
+            pair_flows[(uid, payer)] += amount
+
+    # Recorded settlements reduce the gross debt for that pair
+    for s in settlements:
+        from_uid = s.get("fromUserId")
+        to_uid = s.get("toUserId")
+        amount = s.get("amountInDestinationCurrency", 0)
+        pair_flows[(from_uid, to_uid)] -= amount
+
+    # For every unique {A, B} pair, compute the net direction and amount
+    seen: set[frozenset] = set()
+    transactions = []
+
+    for (a, b) in list(pair_flows.keys()):
+        pair = frozenset([a, b])
+        if pair in seen:
+            continue
+        seen.add(pair)
+
+        a_owes_b = pair_flows.get((a, b), 0)
+        b_owes_a = pair_flows.get((b, a), 0)
+        net = a_owes_b - b_owes_a
+
+        if net > 0.005:
+            transactions.append({"from": a, "to": b, "amount": round(net, 2)})
+        elif net < -0.005:
+            transactions.append({"from": b, "to": a, "amount": round(-net, 2)})
+
+    transactions.sort(key=lambda t: t["amount"], reverse=True)
+    return transactions
+
+
 def simplify_debts(balances: dict[str, float]) -> list[dict]:
     """Greedy debt simplification — returns minimal list of transactions."""
     creditors = sorted(
