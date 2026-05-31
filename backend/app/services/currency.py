@@ -9,9 +9,13 @@ def calculate_equal_splits(total: float, member_ids: list[str], payer_id: str) -
     n = len(member_ids)
     base = floor2(total / n)
     remainder = round(total - base * n, 2)
+    # Remainder goes to payer if they're in the split; otherwise to the first member,
+    # so that splits always sum exactly to total regardless of who paid.
+    payer_in_splits = payer_id in member_ids
+    remainder_holder = payer_id if payer_in_splits else (member_ids[0] if member_ids else payer_id)
     splits = []
     for uid in member_ids:
-        amt = base + remainder if uid == payer_id else base
+        amt = base + remainder if uid == remainder_holder else base
         splits.append({"userId": uid, "amountInDestinationCurrency": round(amt, 2)})
     return splits
 
@@ -29,10 +33,14 @@ def calculate_percentage_splits(total: float, inputs: list[dict], payer_id: str)
         splits.append({"userId": s["userId"], "percentage": s["percentage"], "amountInDestinationCurrency": amt})
 
     remainder = round(total - running, 2)
+    assigned = False
     for sp in splits:
         if sp["userId"] == payer_id:
             sp["amountInDestinationCurrency"] = round(sp["amountInDestinationCurrency"] + remainder, 2)
+            assigned = True
             break
+    if not assigned and splits:
+        splits[0]["amountInDestinationCurrency"] = round(splits[0]["amountInDestinationCurrency"] + remainder, 2)
 
     return splits
 
@@ -66,9 +74,13 @@ def calculate_exact_splits(
     if abs(remainder) > 0.02:
         raise ValueError(f"Exact split amounts don't match total (diff={remainder})")
 
+    assigned = False
     for sp in splits:
         if sp["userId"] == payer_id:
             sp["amountInDestinationCurrency"] = round(sp["amountInDestinationCurrency"] + remainder, 2)
+            assigned = True
             break
+    if not assigned and splits:
+        splits[0]["amountInDestinationCurrency"] = round(splits[0]["amountInDestinationCurrency"] + remainder, 2)
 
     return splits

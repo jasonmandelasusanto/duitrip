@@ -198,8 +198,13 @@ export default function TripDetail() {
       return true;
     });
     return [...filtered].sort((a, b) => {
-      const diff = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-      return sortOrder === 'desc' ? -diff : diff;
+      const da = new Date(a.createdAt).getTime();
+      const db = new Date(b.createdAt).getTime();
+      if (da !== db) return sortOrder === 'desc' ? db - da : da - db;
+      // Same logical date: use updatedAt (wall-clock entry time) as tiebreaker
+      const ua = new Date(a.updatedAt).getTime();
+      const ub = new Date(b.updatedAt).getTime();
+      return sortOrder === 'desc' ? ub - ua : ua - ub;
     });
   }, [expenses, search, categoryFilter, payerFilter, sortOrder]);
 
