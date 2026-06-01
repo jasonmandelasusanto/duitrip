@@ -1,0 +1,62 @@
+{
+  "_comment": "Anonymised real 5-day group trip. alpha/beta/gamma replace actual member names. Amounts in trip currency (IDR). Split Between recorded per-expense from the live app export.",
+  "trip": "trip_alpha",
+  "currency": "IDR",
+  "members": ["alpha", "beta", "gamma"],
+  "expenses": [
+    {"desc": "Breakfast (day 5)",            "payer": "gamma", "amount": 356399.00,   "split": ["beta", "gamma"]},
+    {"desc": "Lunch noodles (day 5)",         "payer": "gamma", "amount": 198000.00,   "split": ["alpha", "beta", "gamma"]},
+    {"desc": "Driver last day",               "payer": "alpha", "amount": 300000.00,   "split": ["alpha", "beta", "gamma"]},
+    {"desc": "Extra bed",                     "payer": "beta",  "amount": 400000.00,   "split": ["gamma"]},
+    {"desc": "Porridge (alpha only)",         "payer": "alpha", "amount":  82280.00,   "split": ["alpha"]},
+    {"desc": "Car from home city (personal)", "payer": "alpha", "amount": 472222.22,   "split": ["alpha"]},
+    {"desc": "Restaurant (alpha+beta)",       "payer": "beta",  "amount": 350000.00,   "split": ["alpha", "beta"]},
+    {"desc": "Laundry (alpha+beta)",          "payer": "alpha", "amount":  45000.00,   "split": ["alpha", "beta"]},
+    {"desc": "Snack (personal)",              "payer": "alpha", "amount":  42879.00,   "split": ["alpha"]},
+    {"desc": "Lunch (alpha+gamma)",           "payer": "alpha", "amount": 171900.00,   "split": ["alpha", "gamma"]},
+    {"desc": "Museum tickets (alpha+gamma)",  "payer": "alpha", "amount":  40000.00,   "split": ["alpha", "gamma"]},
+    {"desc": "Breakfast (alpha+gamma)",       "payer": "alpha", "amount": 356399.00,   "split": ["alpha", "gamma"]},
+    {"desc": "Private tour (alpha+gamma)",    "payer": "gamma", "amount": 1591688.00,  "split": ["alpha", "gamma"]},
+    {"desc": "Dinner (alpha+beta)",           "payer": "alpha", "amount": 191900.00,   "split": ["alpha", "beta"]},
+    {"desc": "Cafe (alpha+beta)",             "payer": "alpha", "amount":  50000.00,   "split": ["alpha", "beta"]},
+    {"desc": "Transport (alpha+beta)",        "payer": "beta",  "amount":  35000.00,   "split": ["alpha", "beta"]},
+    {"desc": "Dinner seafood (alpha+beta)",   "payer": "alpha", "amount": 365611.00,   "split": ["alpha", "beta"]},
+    {"desc": "Train (alpha+beta)",            "payer": "beta",  "amount": 150000.00,   "split": ["alpha", "beta"]},
+    {"desc": "Breakfast (alpha+beta day 3)",  "payer": "alpha", "amount": 356399.00,   "split": ["alpha", "beta"]},
+    {"desc": "Driver day 1 (alpha+beta)",     "payer": "alpha", "amount": 700000.00,   "split": ["alpha", "beta"]},
+    {"desc": "Activity tickets (alpha+beta)", "payer": "alpha", "amount": 100000.00,   "split": ["alpha", "beta"]},
+    {"desc": "Entry tickets (alpha+beta)",    "payer": "beta",  "amount": 100000.00,   "split": ["alpha", "beta"]},
+    {"desc": "Laundry (alpha+beta) day 2",   "payer": "alpha", "amount":  45000.00,   "split": ["alpha", "beta"]},
+    {"desc": "Massage (alpha+beta)",          "payer": "beta",  "amount": 400000.00,   "split": ["alpha", "beta"]},
+    {"desc": "Car to hotel (alpha+beta)",     "payer": "alpha", "amount":  48000.00,   "split": ["alpha", "beta"]},
+    {"desc": "Dinner traditional (alpha+beta)","payer":"alpha", "amount": 211750.00,   "split": ["alpha", "beta"]},
+    {"desc": "Breakfast (alpha+beta day 2)",  "payer": "beta",  "amount": 356399.00,   "split": ["alpha", "beta"]},
+    {"desc": "Souvenir (beta paid for alpha)","payer": "beta",  "amount": 300000.00,   "split": ["alpha"]},
+    {"desc": "Lunch local (alpha+beta)",      "payer": "beta",  "amount": 299079.00,   "split": ["alpha", "beta"]},
+    {"desc": "Car to lunch (alpha+beta)",     "payer": "beta",  "amount":  60500.00,   "split": ["alpha", "beta"]},
+    {"desc": "Souvenir (personal)",           "payer": "alpha", "amount":  75000.00,   "split": ["alpha"]},
+    {"desc": "Snack souvenir (personal)",     "payer": "alpha", "amount":  70000.00,   "split": ["alpha"]},
+    {"desc": "Taxi home city (personal)",     "payer": "alpha", "amount": 391666.67,   "split": ["alpha"]},
+    {"desc": "Cafe snack (personal)",         "payer": "alpha", "amount":  81628.00,   "split": ["alpha"]},
+    {"desc": "Train to airport (personal)",   "payer": "alpha", "amount":  75000.00,   "split": ["alpha"]},
+    {"desc": "Dinner on arrival (personal)",  "payer": "alpha", "amount":  90000.00,   "split": ["alpha"]},
+    {"desc": "Car to hotel arrival (personal)","payer":"alpha", "amount":  69500.00,   "split": ["alpha"]},
+    {"desc": "Checked baggage (personal)",    "payer": "alpha", "amount": 712916.67,   "split": ["alpha"]},
+    {"desc": "Hotel (alpha+beta)",            "payer": "beta",  "amount": 7552215.00,  "split": ["alpha", "beta"]},
+    {"desc": "Flight round-trip (personal)",  "payer": "alpha", "amount": 7180416.67,  "split": ["alpha"]}
+  ],
+  "expected": {
+    "grand_total": 24474748.23,
+    "net_balances": {
+      "alpha": -4272461.00,
+      "beta":   3950567.00,
+      "gamma":   321894.00
+    },
+    "bilateral_transactions": [
+      {"from": "alpha", "to": "beta",  "amount": 3794766.50},
+      {"from": "alpha", "to": "gamma", "amount":  477694.50},
+      {"from": "gamma", "to": "beta",  "amount":  155800.50}
+    ],
+    "notes": "After all 3 transfers every member balance reaches exactly IDR 0."
+  }
+}
