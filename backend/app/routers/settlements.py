@@ -44,6 +44,25 @@ async def get_settlement(trip_id: str, current_user: dict = Depends(get_current_
         if uid:
             member_map[uid] = m
 
+    # Build per-pair expense breakdown for the detail view
+    from collections import defaultdict as _dd
+    pair_lines: dict[tuple, list] = _dd(list)
+    for exp in expenses:
+        payer = exp.get("paidBy")
+        desc = exp.get("description", "")
+        exp_id = exp.get("expenseId") or exp.get("id", "")
+        for split in exp.get("splits", []):
+            uid = split.get("userId")
+            if uid == payer:
+                continue
+            amt = split.get("amountInDestinationCurrency", 0)
+            if amt > 0.005:
+                pair_lines[(uid, payer)].append({
+                    "expenseId": exp_id,
+                    "description": desc,
+                    "amount": round(amt, 2),
+                })
+
     # Fetch live rates for home currency conversions
     home_currencies = list({m.get("homeCurrency", "USD") for m in members if m.get("homeCurrency")})
     rates = await fx_service.fetch_rates(dest_currency, [c for c in home_currencies if c != dest_currency])
@@ -53,22 +72,32 @@ async def get_settlement(trip_id: str, current_user: dict = Depends(get_current_
 
     tx_result = []
     for tx in transactions:
-        from_m = member_map.get(tx["from"], {})
-        to_m = member_map.get(tx["to"], {})
+        from_uid, to_uid = tx["from"], tx["to"]
+        from_m = member_map.get(from_uid, {})
+        to_m = member_map.get(to_uid, {})
         from_currency = from_m.get("homeCurrency", dest_currency)
         to_currency = to_m.get("homeCurrency", dest_currency)
         amt = tx["amount"]
+        # Breakdown: expenses where from_uid owes to_uid, and vice-versa (offsets)
+        owes_lines = pair_lines.get((from_uid, to_uid), [])
+        offset_lines = pair_lines.get((to_uid, from_uid), [])
         tx_result.append({
-            "from": {"userId": tx["from"], "displayName": from_m.get("displayName", tx["from"]),
-                     "isGhost": str(tx["from"]).startswith("ghost_")},
-            "to": {"userId": tx["to"], "displayName": to_m.get("displayName", tx["to"]),
-                   "isGhost": str(tx["to"]).startswith("ghost_")},
+            "from": {"userId": from_uid, "displayName": from_m.get("displayName", from_uid),
+                     "isGhost": str(from_uid).startswith("ghost_")},
+            "to": {"userId": to_uid, "displayName": to_m.get("displayName", to_uid),
+                   "isGhost": str(to_uid).startswith("ghost_")},
             "amountInDestinationCurrency": amt,
             "destinationCurrency": dest_currency,
             "amountInFromHomeCurrency": round(amt * rates.get(from_currency, 1.0), 2),
             "fromHomeCurrency": from_currency,
             "amountInToHomeCurrency": round(amt * rates.get(to_currency, 1.0), 2),
             "toHomeCurrency": to_currency,
+            "breakdown": {
+                "owes": owes_lines,
+                "owesTotal": round(sum(e["amount"] for e in owes_lines), 2),
+                "offsets": offset_lines,
+                "offsetsTotal": round(sum(e["amount"] for e in offset_lines), 2),
+            },
         })
 
     total = sum(e.get("amountInDestinationCurrency", 0) for e in expenses)

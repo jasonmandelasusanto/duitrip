@@ -15,7 +15,9 @@ export function SettlementCard({ transaction: tx, onMarkSettled, onNudge }: Sett
   const [loading, setLoading] = useState(false);
   const [nudged, setNudged] = useState(false);
   const [nudging, setNudging] = useState(false);
+  const [showBreakdown, setShowBreakdown] = useState(false);
   const isGhostTx = tx.from.isGhost || tx.to.isGhost;
+  const bd = tx.breakdown;
 
   async function handleNudge() {
     if (!onNudge) return;
@@ -66,6 +68,14 @@ export function SettlementCard({ transaction: tx, onMarkSettled, onNudge }: Sett
           {isGhostTx && (
             <p className="text-xs text-warning mt-1">⚠️ Collect offline</p>
           )}
+          {bd && (bd.owes.length > 0 || bd.offsets.length > 0) && (
+            <button
+              onClick={() => setShowBreakdown((v) => !v)}
+              className="text-xs text-teal hover:underline mt-1.5 block"
+            >
+              {showBreakdown ? '▲ Hide breakdown' : '▼ Show breakdown'}
+            </button>
+          )}
         </div>
         <div className="flex flex-col gap-1.5 shrink-0">
           {onNudge && !isGhostTx && !confirming && (
@@ -84,6 +94,54 @@ export function SettlementCard({ transaction: tx, onMarkSettled, onNudge }: Sett
           )}
         </div>
       </div>
+
+      {/* Breakdown detail */}
+      {showBreakdown && bd && (
+        <div className="mt-3 pt-3 border-t border-bg-border text-xs space-y-3">
+          {bd.owes.length > 0 && (
+            <div>
+              <p className="text-text-muted font-semibold mb-1">
+                {tx.to.displayName} paid, {tx.from.displayName}'s share:
+              </p>
+              <div className="space-y-0.5">
+                {bd.owes.map((line, i) => (
+                  <div key={i} className="flex justify-between gap-2">
+                    <span className="text-text-secondary truncate">{line.description}</span>
+                    <span className="text-danger font-mono shrink-0">{formatCurrency(line.amount, tx.destinationCurrency)}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between gap-2 border-t border-bg-border pt-0.5 mt-0.5">
+                  <span className="text-text-muted">Subtotal</span>
+                  <span className="text-danger font-mono font-semibold">{formatCurrency(bd.owesTotal, tx.destinationCurrency)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+          {bd.offsets.length > 0 && (
+            <div>
+              <p className="text-text-muted font-semibold mb-1">
+                {tx.from.displayName} paid, {tx.to.displayName}'s share (offset):
+              </p>
+              <div className="space-y-0.5">
+                {bd.offsets.map((line, i) => (
+                  <div key={i} className="flex justify-between gap-2">
+                    <span className="text-text-secondary truncate">{line.description}</span>
+                    <span className="text-success font-mono shrink-0">−{formatCurrency(line.amount, tx.destinationCurrency)}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between gap-2 border-t border-bg-border pt-0.5 mt-0.5">
+                  <span className="text-text-muted">Subtotal offset</span>
+                  <span className="text-success font-mono font-semibold">−{formatCurrency(bd.offsetsTotal, tx.destinationCurrency)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+          <div className="flex justify-between gap-2 border-t border-bg-border pt-1.5 font-semibold">
+            <span className="text-text-secondary">Net owed</span>
+            <span className="text-amber font-mono">{formatCurrency(tx.amountInDestinationCurrency, tx.destinationCurrency)}</span>
+          </div>
+        </div>
+      )}
 
       {confirming && (
         <div className="mt-3 pt-3 border-t border-bg-border">

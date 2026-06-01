@@ -112,6 +112,12 @@ export interface Settlement {
   createdBy: string;
 }
 
+export interface SettlementBreakdownLine {
+  expenseId: string;
+  description: string;
+  amount: number;
+}
+
 export interface SettlementTransaction {
   from: { userId: string; displayName: string; isGhost: boolean };
   to: { userId: string; displayName: string; isGhost: boolean };
@@ -121,6 +127,12 @@ export interface SettlementTransaction {
   fromHomeCurrency: string;
   amountInToHomeCurrency: number;
   toHomeCurrency: string;
+  breakdown?: {
+    owes: SettlementBreakdownLine[];
+    owesTotal: number;
+    offsets: SettlementBreakdownLine[];
+    offsetsTotal: number;
+  };
 }
 
 export interface BalanceMember {
