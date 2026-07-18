@@ -23,6 +23,7 @@ import com.duitrip.app.ui.LocalCurrentUser
 import com.duitrip.app.ui.components.CurrencyField
 import com.duitrip.app.ui.components.DField
 import com.duitrip.app.ui.components.PrimaryButton
+import com.duitrip.app.ui.components.ScreenScaffold
 import com.duitrip.app.ui.theme.Danger
 import com.duitrip.app.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
