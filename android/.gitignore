@@ -1,0 +1,22 @@
+*.iml
+.gradle/
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Build outputs
+**/build/
+app/build/
+
+# Signing / secrets — never commit
+*.keystore
+*.jks
+keystore.properties
+
+# Firebase app config — provide your own; see google-services.json.example
+app/google-services.json

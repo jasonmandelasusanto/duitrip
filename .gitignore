@@ -54,3 +54,13 @@ htmlcov/
 
 # GCP
 .gcloud/
+
+# Android
+**/build/
+.gradle/
+local.properties
+*.keystore
+*.jks
+keystore.properties
+# Firebase app config — provide your own; see android/app/google-services.json.example
+google-services.json

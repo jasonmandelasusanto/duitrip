@@ -1,206 +1,116 @@
-# Duitrip ✈️
+# Duitrip
 
-Multi-currency trip expense tracker. Split costs across currencies with exchange rates locked at the moment of recording, so totals never drift after the fact.
+**Split trip expenses, effortlessly.** Duitrip is a native **Android** app for tracking
+and splitting group travel costs across currencies — expenses, ghost members, live
+settle-up, and analytics — backed entirely by **Firebase** (Auth + Cloud Firestore).
+No server to run.
+
+> Duitrip was originally a React PWA + FastAPI backend on Cloud Run. It's now a native
+> Kotlin/Jetpack Compose app that talks directly to Firestore, with authorization
+> enforced by Firestore Security Rules. The old web/backend lives in git history under
+> the `web-legacy` tag.
 
 ## Features
 
-- **Multi-currency splits** — equal, percentage, or exact amounts; exchange rates snapshotted at creation time
-- **Ghost members** — add people who don't have an account yet; promote them later when they join
-- **Debt simplification** — greedy algorithm minimises the number of settlement transactions
-- **Settlement history** — record settlements with optional notes; edit or delete past records
-- **Analytics** — spending by category, by day, by member, personal vs group average
-- **Expense management** — creator can edit or delete their own expenses (owners can edit any)
-- **Member management** — trip owner can invite, remove members, and promote ghost members
-- **Country flag emoji** — automatically shown next to trip titles based on destination currency
-- **Profile pictures** — client-side canvas crop (128×128 JPEG) stored as base64 in Firestore
-- **PWA** — installable, works offline for reads
-- **Cloudflare Turnstile** — optional CAPTCHA on sign-up/onboarding (skipped when site key is empty)
-- **Email/password + Google sign-in** via Firebase Auth
+- **Multi-currency expenses** — record in any currency; amounts convert to the trip's
+  destination currency and each member's home currency, with the exchange rate **locked
+  at record time**.
+- **Flexible splits** — equal, by percentage, or exact amounts; rounding remainder
+  always assigned to the payer.
+- **Ghost members** — add people who aren't on the app yet, then promote/invite them.
+- **Settle up** — greedy debt simplification shows the minimal set of "who pays whom".
+- **Analytics** — spend by category, by day, by member, and your share vs the group.
+- **Google + email/password sign-in**, offline-first Firestore cache.
 
-## Tech Stack
+## Tech stack
 
-| Layer | Tech |
-|-------|------|
-| Frontend | React 18 + Vite + TypeScript + Tailwind CSS |
-| State | Zustand |
-| Charts | Recharts |
-| Backend | FastAPI (Python 3.11) + Uvicorn |
-| Database | Firestore (Firebase) |
-| Auth | Firebase Auth (email/password + Google OAuth) |
-| Exchange rates | [frankfurter.app](https://www.frankfurter.app/) — 1-hour in-memory cache |
-| Local dev | Docker Compose + Firebase Emulator Suite |
-| CI | GitHub Actions (lint → type-check → Docker build) |
-| Deploy | Google Cloud Run (single container) via Cloud Build |
+| Layer | Choice |
+|-------|--------|
+| UI | Kotlin + Jetpack Compose (Material 3), Navigation-Compose |
+| Data | Firebase Auth + Cloud Firestore (direct, via the Android SDK) |
+| Auth | Email/password + Google (Credential Manager) |
+| Rates | [frankfurter.app](https://www.frankfurter.app/) |
+| Build | Gradle (Kotlin DSL), min SDK 26 / target SDK 34 |
 
-## Local Development
+## Project layout
 
-### Prerequisites
-
-- Docker & Docker Compose
-- Java 21+ (only needed if running the Firebase emulator outside Docker)
-
-### Start everything
-
-```bash
-docker compose -f docker-compose.dev.yml up --build
+```
+android/           # the Android app (Kotlin + Compose)
+  app/src/main/java/com/duitrip/app/
+    domain/        # pure business logic (splits, settlement, analytics) + unit tests
+    data/          # Firestore repositories + models
+    ui/            # Compose screens, navigation, theme
+firebase/          # Firestore rules, emulator config, seed + backfill scripts
+.github/workflows/ # CI: builds a release APK on version tags
 ```
 
-| Service | URL |
-|---------|-----|
-| Frontend | http://localhost:5173 |
-| Backend API | http://localhost:8001 |
-| Firebase Emulator UI | http://localhost:4000 |
+## Getting started
 
-### Seed test data
+### 1. Create a Firebase project
 
-```bash
+Enable **Authentication** (Google + Email/Password) and **Cloud Firestore**. Then add an
+**Android app** with package name `com.duitrip.app` and download its
+`google-services.json` into `android/app/` (see `android/app/google-services.json.example`).
+This file is gitignored — never commit it.
+
+Put your Google **Web client ID** (Auth → Google → Web SDK configuration) into
+`android/app/src/main/res/values/strings.xml` as `default_web_client_id`.
+
+### 2. Deploy the Firestore Security Rules
+
+```
 cd firebase
-npm install
-FIRESTORE_EMULATOR_HOST=localhost:8080 FIREBASE_AUTH_EMULATOR_HOST=localhost:9099 node seed.js
+firebase deploy --only firestore:rules
 ```
 
-### Test accounts (after seeding)
+> **Migrating existing data?** If your Firestore already has trips created by the old
+> backend, run the additive backfill **before** deploying the strict rules, so existing
+> members keep access:
+>
+> ```
+> GOOGLE_APPLICATION_CREDENTIALS=./sa.json FIREBASE_PROJECT_ID=your-project \
+>   node firebase/backfill-memberUids.js
+> ```
 
-| Name | Email | Password | Home currency |
-|------|-------|----------|---------------|
-| Jason | `jason@test.com` | `test1234` | IDR |
-| Somchai | `somchai@test.com` | `test1234` | THB |
+### 3. Build the app
 
-There is one pre-seeded trip ("Singapore Trip 2026") with two expenses and a ghost member (Budi).
-
-### Environment variables
-
-**`frontend/.env.local`**
-
-```env
-VITE_FIREBASE_API_KEY=fake-api-key-for-emulator
-VITE_FIREBASE_AUTH_DOMAIN=demo-duitrip.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=demo-duitrip
-VITE_FIREBASE_STORAGE_BUCKET=demo-duitrip.appspot.com
-VITE_FIREBASE_MESSAGING_SENDER_ID=000000000000
-VITE_FIREBASE_APP_ID=1:000000000000:web:000000000000000000000000
-VITE_API_BASE_URL=http://localhost:8001
-VITE_USE_FIREBASE_EMULATOR=true
-VITE_TURNSTILE_SITE_KEY=       # leave empty to skip CAPTCHA locally
-```
-
-**`backend/.env.local`**
-
-```env
-FIREBASE_PROJECT_ID=demo-duitrip
-FIREBASE_SERVICE_ACCOUNT_JSON=  # leave empty for emulator mode
-ALLOWED_ORIGINS=http://localhost:5173
-CLOUDFLARE_TURNSTILE_SECRET_KEY=  # leave empty to skip CAPTCHA locally
-```
-
-## Project Structure
+Open `android/` in Android Studio and let it sync (this downloads the SDK and generates
+the Gradle wrapper), then Run. Or from the command line:
 
 ```
-duitrip/
-├── Dockerfile                  # Production: multi-stage (React build + Python)
-├── docker-compose.dev.yml      # Local dev stack
-├── cloudbuild.yaml             # Google Cloud Build pipeline
-├── .github/workflows/ci.yml    # GitHub Actions CI
-│
-├── frontend/
-│   ├── src/
-│   │   ├── pages/              # Route-level components
-│   │   ├── components/         # Shared UI + feature components
-│   │   ├── hooks/              # useAuth, useTrip, useExpenses, useExchangeRates
-│   │   ├── services/           # Firebase, Axios API client, auth helpers
-│   │   ├── store/              # Zustand app store
-│   │   ├── utils/              # Currency formatting, date helpers, image upload
-│   │   └── types/              # Shared TypeScript types
-│   └── ...
-│
-├── backend/
-│   ├── app/
-│   │   ├── routers/            # FastAPI routers (users, trips, expenses, …)
-│   │   ├── models/             # Pydantic request/response models
-│   │   ├── services/           # Firestore, exchange rates, settlement, Turnstile
-│   │   └── main.py             # App entrypoint; serves SPA static files in prod
-│   └── tests/
-│
-└── firebase/
-    ├── Dockerfile.emulator     # Firebase Emulator (Java 21 + Node 20)
-    ├── firebase.json
-    ├── firestore.rules
-    └── seed.js                 # Creates test users, trip, and expenses
+cd android
+./gradlew testDebugUnitTest   # run the business-logic unit tests
+./gradlew assembleDebug       # -> app/build/outputs/apk/debug/app-debug.apk
 ```
 
-## API
+### Releases (CI)
 
-All endpoints are prefixed with `/api`. Auth requires a Firebase ID token in the `Authorization: Bearer <token>` header.
+Pushing a version tag builds the APK and attaches it to the GitHub Release:
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/trips` | List the current user's trips |
-| POST | `/api/trips` | Create a trip |
-| GET | `/api/trips/:id` | Get a trip |
-| PATCH | `/api/trips/:id` | Update trip details |
-| GET | `/api/trips/:id/expenses` | List expenses (paginated) |
-| POST | `/api/trips/:id/expenses` | Add an expense |
-| PATCH | `/api/trips/:id/expenses/:eid` | Edit an expense (creator or owner) |
-| DELETE | `/api/trips/:id/expenses/:eid` | Delete an expense (creator within 24 h, or owner) |
-| GET | `/api/trips/:id/settlement` | Calculate outstanding settlement plan |
-| POST | `/api/trips/:id/settlement` | Record a settlement with optional note |
-| GET | `/api/trips/:id/settlements` | Settlement history |
-| PATCH | `/api/trips/:id/settlements/:sid` | Edit a settlement note |
-| DELETE | `/api/trips/:id/settlements/:sid` | Delete a settlement record |
-| GET | `/api/trips/:id/analytics` | Spending analytics |
-| POST | `/api/trips/:id/invites` | Invite a member by email |
-| POST | `/api/trips/:id/invites/accept` | Accept a pending invite |
-| POST | `/api/trips/:id/members/ghost` | Add a ghost member |
-| PATCH | `/api/trips/:id/members/ghost/:gid` | Update a ghost member's name/currency |
-| POST | `/api/trips/:id/members/ghost/:gid/promote` | Send invite to promote ghost to real member |
-| DELETE | `/api/trips/:id/members/:mid` | Remove a member (owner only) |
-| GET | `/api/exchange-rates/:from/:to` | Spot rate (cached 1 h) |
-| GET | `/api/users/me` | Current user profile |
-| PATCH | `/api/users/me` | Update display name, home currency, or photo |
-| POST | `/api/users/me/init` | Onboarding (sets home currency, verifies Turnstile) |
-| GET | `/health` | Health check (no auth) |
-
-Interactive docs: http://localhost:8001/api/docs
-
-## Deployment (Google Cloud Run)
-
-The `cloudbuild.yaml` builds a single Docker image (frontend bundled into the Python backend) and deploys it to Cloud Run.
-
-### One-time setup
-
-```bash
-# Enable required APIs
-gcloud services enable cloudbuild.googleapis.com run.googleapis.com \
-  secretmanager.googleapis.com artifactregistry.googleapis.com
-
-# Create Artifact Registry repo
-gcloud artifacts repositories create duitrip \
-  --repository-format=docker --location=us-central1
-
-# Store secrets
-gcloud secrets create FIREBASE_SERVICE_ACCOUNT_JSON --data-file=service-account.json
-gcloud secrets create CLOUDFLARE_TURNSTILE_SECRET_KEY --data-file=-  # paste key, Ctrl-D
-
-# Grant Cloud Build permissions (replace PROJECT_NUMBER)
-gcloud projects add-iam-policy-binding PROJECT_ID \
-  --member="serviceAccount:PROJECT_NUMBER@cloudbuild.gserviceaccount.com" \
-  --role="roles/secretmanager.secretAccessor"
-gcloud projects add-iam-policy-binding PROJECT_ID \
-  --member="serviceAccount:PROJECT_NUMBER@cloudbuild.gserviceaccount.com" \
-  --role="roles/run.admin"
+```
+git tag v1.0.0 && git push origin v1.0.0
 ```
 
-Then connect your GitHub repo in the Cloud Build console and set the `_VITE_FIREBASE_*` substitution variables to your production Firebase project values.
+This requires a repo secret **`GOOGLE_SERVICES_JSON`** — the base64 of your
+`google-services.json` — since that file isn't committed. See
+[.github/workflows/android-release.yml](.github/workflows/android-release.yml).
 
-## Running Tests
+## Security model
 
-```bash
-# Backend unit tests
-cd backend
-pip install -r requirements.txt pytest pytest-asyncio
-pytest tests/ -v
+Firestore Security Rules ([firebase/firestore.rules](firebase/firestore.rules)) are the
+authorization boundary: only trip members can read/write a trip and its expenses/
+settlements, only the owner can archive, and expense deletion by a non-owner creator is
+limited to 24 hours. A few softer invariants (max 20 custom categories, unique names,
+"category in use", duplicate-invite checks) are enforced client-side.
+
+## Local development with the emulator
+
+```
+cd firebase
+firebase emulators:start --only firestore,auth   # project: demo-duitrip
+node seed.js                                      # sample data
 ```
 
 ## License
 
-MIT
+[MIT](LICENSE) © Jason Mandela

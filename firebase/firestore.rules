@@ -1,8 +1,101 @@
 rules_version = '2';
+
+// Duitrip Firestore Security Rules.
+//
+// These replace the trusted FastAPI backend that used to enforce authorization.
+// The native app talks to Firestore directly, so every access check now lives here.
+//
+// Trip access keys off two denormalised arrays maintained by the client:
+//   - memberUids:   real member uids (used for member/owner checks + querying)
+//   - inviteEmails: emails with a pending invite (lets an invited user join)
+//
+// Soft-delete: trips are archived via an update (status = "archived"); document
+// deletes are disallowed. Some invariants the old backend enforced (max 20 custom
+// categories, unique names, "category in use", duplicate-invite checks) are not
+// expressible in rules and remain client-side checks — acceptable for this app.
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if true;
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function uid() {
+      return request.auth.uid;
+    }
+    function userEmail() {
+      return request.auth.token.email;
+    }
+
+    // ── users/{userId} — only the owner may read or write their profile ──────────
+    match /users/{userId} {
+      allow read: if isSignedIn() && uid() == userId;
+      allow create, update: if isSignedIn() && uid() == userId
+        && request.resource.data.uid == userId;
+      allow delete: if false;
+    }
+
+    // ── trips/{tripId} ───────────────────────────────────────────────────────────
+    match /trips/{tripId} {
+      function isMember() {
+        return isSignedIn() && uid() in resource.data.memberUids;
+      }
+      function isOwner() {
+        return isSignedIn() && uid() == resource.data.createdBy;
+      }
+      // A signed-in, invited user adding only themselves to memberUids (invite accept).
+      function isAcceptingInvite() {
+        return isSignedIn()
+          && !(uid() in resource.data.memberUids)
+          && uid() in request.resource.data.memberUids
+          && userEmail() in resource.data.inviteEmails
+          && request.resource.data.createdBy == resource.data.createdBy;
+      }
+
+      allow read: if isMember();
+      allow create: if isSignedIn()
+        && request.resource.data.createdBy == uid()
+        && uid() in request.resource.data.memberUids;
+      // Members may update the trip; an invited user may update to add themselves.
+      allow update: if isMember() || isAcceptingInvite();
+      // Deletion is soft (status = "archived") via update; hard delete is blocked.
+      allow delete: if false;
+
+      // Helpers reading the parent trip for subcollection checks.
+      function parentTrip() {
+        return get(/databases/$(database)/documents/trips/$(tripId)).data;
+      }
+      function isTripMember() {
+        return isSignedIn() && uid() in parentTrip().memberUids;
+      }
+      function isTripOwner() {
+        return isSignedIn() && uid() == parentTrip().createdBy;
+      }
+
+      // ── expenses ────────────────────────────────────────────────────────────
+      match /expenses/{expenseId} {
+        allow read: if isTripMember();
+        allow create: if isTripMember()
+          && request.resource.data.createdBy == uid();
+        // Creator or trip owner may edit.
+        allow update: if isTripMember()
+          && (resource.data.createdBy == uid() || isTripOwner());
+        // Owner may delete anytime; the creator only within 24h of creation.
+        allow delete: if isTripMember() && (
+          isTripOwner() ||
+          (resource.data.createdBy == uid()
+            && request.time < resource.data.createdAt + duration.value(24, 'h'))
+        );
+      }
+
+      // ── settlements ─────────────────────────────────────────────────────────
+      match /settlements/{settlementId} {
+        allow read: if isTripMember();
+        allow create: if isTripMember()
+          && request.resource.data.createdBy == uid();
+        allow update, delete: if isTripMember()
+          && (resource.data.createdBy == uid() || isTripOwner());
+      }
     }
   }
 }

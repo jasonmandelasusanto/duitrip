@@ -1,0 +1,13 @@
+# Normalise line endings — store text as LF in the repo.
+* text=auto eol=lf
+
+*.bat text eol=crlf
+
+# Treat these as binary (no EOL conversion, no diff).
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.jar binary
+*.keystore binary
+*.jks binary
