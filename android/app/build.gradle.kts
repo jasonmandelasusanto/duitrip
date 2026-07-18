@@ -18,14 +18,33 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            // Keystore is provided by CI (decoded from a secret) at android/keystore/release.jks.
+            // Kept out of git; see android/.gitignore.
+            val ksFile = rootProject.file("keystore/release.jks")
+            if (ksFile.exists()) {
+                storeFile = ksFile
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
+            // Minify left off for now so the first release APK is dependable
+            // (avoids R8 stripping Firestore's reflective model access).
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            if (rootProject.file("keystore/release.jks").exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 

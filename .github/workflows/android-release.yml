@@ -44,16 +44,32 @@ jobs:
           fi
           echo "$GOOGLE_SERVICES_JSON" | base64 -d > android/app/google-services.json
 
+      - name: Provide release keystore
+        # Base64 of your release.jks, stored in the KEYSTORE_BASE64 secret.
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::KEYSTORE_BASE64 secret is not set — add it so Google Sign-In works with a stable SHA-1."
+            exit 1
+          fi
+          mkdir -p android/keystore
+          echo "$KEYSTORE_BASE64" | base64 -d > android/keystore/release.jks
+
       - name: Run unit tests
         run: gradle -p android testDebugUnitTest
 
-      - name: Build debug APK
-        run: gradle -p android assembleDebug
+      - name: Build signed release APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: gradle -p android assembleRelease
 
       - name: Rename APK
         run: |
           mkdir -p dist
-          cp android/app/build/outputs/apk/debug/app-debug.apk "dist/duitrip-${GITHUB_REF_NAME}.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "dist/duitrip-${GITHUB_REF_NAME}.apk"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

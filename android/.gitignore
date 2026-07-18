@@ -17,6 +17,7 @@ app/build/
 *.keystore
 *.jks
 keystore.properties
+keystore/
 
 # Firebase app config — provide your own; see google-services.json.example
 app/google-services.json
