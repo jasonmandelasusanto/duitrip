@@ -54,6 +54,7 @@ class MembersViewModel(private val repo: TripRepository, val tripId: String) : V
         repo.observeTrip(tripId).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     fun addGhost(name: String, currency: String, onError: (String) -> Unit) = launch(onError) { repo.addGhost(tripId, name, currency) }
+    fun editGhost(ghostId: String, name: String, currency: String, onError: (String) -> Unit) = launch(onError) { repo.updateGhost(tripId, ghostId, name, currency) }
     fun invite(email: String, invitedBy: String, onError: (String) -> Unit) = launch(onError) { repo.inviteMember(tripId, email, invitedBy) }
     fun promote(ghostId: String, email: String, invitedBy: String, onError: (String) -> Unit) = launch(onError) { repo.promoteGhost(tripId, ghostId, email, invitedBy) }
     fun remove(memberId: String, onError: (String) -> Unit) = launch(onError) { repo.removeMember(tripId, memberId) }
@@ -75,6 +76,7 @@ fun MembersScreen(tripId: String, onBack: () -> Unit) {
     var showGhost by remember { mutableStateOf(false) }
     var showInvite by remember { mutableStateOf(false) }
     var promoteFor by remember { mutableStateOf<String?>(null) }
+    var editGhost by remember { mutableStateOf<TripMember?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
 
     ScreenScaffold(title = "Members", onBack = onBack) { pad ->
@@ -94,6 +96,7 @@ fun MembersScreen(tripId: String, onBack: () -> Unit) {
                         onRemove = { m.memberId?.let { vm.remove(it) { e -> error = e } } },
                         onPromote = { if (m.isGhost) promoteFor = m.ghostId },
                         canPromote = isOwner && m.isGhost,
+                        onEdit = { if (m.isGhost) editGhost = m },
                     )
                 }
             }
@@ -122,6 +125,35 @@ fun MembersScreen(tripId: String, onBack: () -> Unit) {
             vm.promote(ghostId, email, currentUid) { error = it }; promoteFor = null
         }
     }
+    editGhost?.let { ghost ->
+        EditGhostDialog(
+            ghost = ghost,
+            onDismiss = { editGhost = null },
+            onConfirm = { name, cur ->
+                ghost.ghostId?.let { vm.editGhost(it, name, cur) { e -> error = e } }
+                editGhost = null
+            },
+        )
+    }
+}
+
+@Composable
+private fun EditGhostDialog(ghost: TripMember, onDismiss: () -> Unit, onConfirm: (String, String) -> Unit) {
+    var name by remember { mutableStateOf(ghost.displayName) }
+    var currency by remember { mutableStateOf(ghost.homeCurrency) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { onConfirm(name, currency) }) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        title = { Text("Edit ghost member") },
+        text = {
+            Column {
+                DField(name, { name = it }, "Name")
+                Spacer(Modifier.height(12.dp))
+                CurrencyField(currency, { currency = it }, "Home currency")
+            }
+        },
+    )
 }
 
 @Composable
@@ -131,17 +163,23 @@ private fun MemberCard(
     onRemove: () -> Unit,
     onPromote: () -> Unit,
     canPromote: Boolean,
+    onEdit: () -> Unit,
 ) {
     SurfaceCard {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Column {
-                Text(member.displayName, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                Text(
+                    member.displayName + if (member.isGhost) " 👻" else "",
+                    color = TextPrimary,
+                    fontWeight = FontWeight.SemiBold,
+                )
                 Text(
                     "${member.role}  ·  ${Format.currencyFlag(member.homeCurrency)} ${member.homeCurrency}",
                     color = TextSecondary,
                 )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (member.isGhost) TextButton(onClick = onEdit) { Text("Edit") }
                 if (canPromote) TextButton(onClick = onPromote) { Text("Promote") }
                 if (canRemove) TextButton(onClick = onRemove) { Text("Remove", color = Danger) }
             }

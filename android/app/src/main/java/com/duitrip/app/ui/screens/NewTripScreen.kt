@@ -1,6 +1,8 @@
 package com.duitrip.app.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -18,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.duitrip.app.domain.CountryCurrency
+import com.duitrip.app.ui.components.SurfaceCard
 import com.duitrip.app.ui.LocalContainer
 import com.duitrip.app.ui.LocalCurrentUser
 import com.duitrip.app.ui.components.CurrencyField
@@ -48,13 +51,51 @@ fun NewTripScreen(onBack: () -> Unit, onCreated: (String) -> Unit) {
         if (!currencyTouched && destination.isNotBlank()) currency = CountryCurrency.resolveCurrency(destination)
     }
 
+    // Destination autocomplete via Nominatim (parity with the PWA), debounced.
+    var suggestions by remember { mutableStateOf<List<com.duitrip.app.data.PlaceSuggestion>>(emptyList()) }
+    var suppressSuggestions by remember { mutableStateOf(false) }
+    LaunchedEffect(destination) {
+        if (suppressSuggestions || destination.length < 3) { suggestions = emptyList(); return@LaunchedEffect }
+        kotlinx.coroutines.delay(400)
+        suggestions = com.duitrip.app.data.NominatimClient.search(destination)
+    }
+
     ScreenScaffold(title = "New trip", onBack = onBack) { pad ->
         Column(
             Modifier.fillMaxSize().padding(pad).padding(16.dp).verticalScroll(rememberScrollState()),
         ) {
             DField(name, { name = it }, "Trip name")
             Spacer(Modifier.height(12.dp))
-            DField(destination, { destination = it }, "Destination (e.g. Tokyo, Japan)")
+            DField(destination, { destination = it; suppressSuggestions = false }, "Destination (e.g. Tokyo, Japan)")
+            if (suggestions.isNotEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                SurfaceCard {
+                    suggestions.forEach { s ->
+                        Text(
+                            s.displayName,
+                            color = TextSecondary,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    suppressSuggestions = true
+                                    destination = s.displayName.split(",").let {
+                                        if (it.size >= 2) "${it.first().trim()}, ${it.last().trim()}" else s.displayName
+                                    }
+                                    s.countryCode?.let { cc ->
+                                        if (!currencyTouched) {
+                                            currency = CountryCurrency.countryCodeToCurrency(cc)
+                                            // Country code from the picked place is authoritative —
+                                            // don't let the name-based heuristic override it.
+                                            currencyTouched = true
+                                        }
+                                    }
+                                    suggestions = emptyList()
+                                }
+                                .padding(vertical = 8.dp),
+                        )
+                    }
+                }
+            }
             Spacer(Modifier.height(12.dp))
             DField(startDate, { startDate = it }, "Start date (YYYY-MM-DD)")
             Spacer(Modifier.height(12.dp))

@@ -118,12 +118,54 @@ fun AnalyticsScreen(tripId: String, onBack: () -> Unit) {
             item { Text("By category", fontWeight = FontWeight.SemiBold, color = TextPrimary) }
             items(analytics.group.byCategory) { slice -> CategoryBar(slice, cur) }
 
+            // Spend by day (parity with the PWA's by-day chart)
+            if (analytics.group.byDay.isNotEmpty()) {
+                item { Spacer(Modifier.height(8.dp)); Text("By day", fontWeight = FontWeight.SemiBold, color = TextPrimary) }
+                item {
+                    val maxAmount = analytics.group.byDay.maxOf { it.amount }.coerceAtLeast(0.01)
+                    SurfaceCard {
+                        analytics.group.byDay.forEach { day ->
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(day.date, color = TextSecondary, fontSize = 13.sp)
+                                Text(
+                                    "${Format.currency(day.amount, cur)} · ${day.expenseCount} exp",
+                                    color = TextSecondary,
+                                    fontSize = 13.sp,
+                                )
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(BgBorder)) {
+                                Box(
+                                    Modifier.fillMaxWidth((day.amount / maxAmount).toFloat().coerceIn(0f, 1f))
+                                        .height(8.dp).clip(RoundedCornerShape(4.dp)).background(Teal),
+                                )
+                            }
+                            Spacer(Modifier.height(8.dp))
+                        }
+                    }
+                }
+            }
+
             item { Spacer(Modifier.height(8.dp)); Text("By member", fontWeight = FontWeight.SemiBold, color = TextPrimary) }
             items(analytics.group.byMember) { m ->
                 SurfaceCard {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(m.displayName, color = TextPrimary)
+                        Text(m.displayName + if (m.isGhost) " 👻" else "", color = TextPrimary)
                         Text("${Format.currency(m.totalPaid, cur)}  (${m.percentage}%)", color = TextSecondary)
+                    }
+                }
+            }
+
+            // Your spending timeline (parity with the PWA's individual timeline)
+            if (analytics.individual.timeline.isNotEmpty()) {
+                item { Spacer(Modifier.height(8.dp)); Text("Your timeline", fontWeight = FontWeight.SemiBold, color = TextPrimary) }
+                items(analytics.individual.timeline) { entry ->
+                    SurfaceCard {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("${entry.emoji}  ${entry.description}", color = TextPrimary, fontSize = 14.sp)
+                            Text(Format.currency(entry.myShare, cur), color = TextSecondary, fontSize = 14.sp)
+                        }
+                        Text(entry.date, color = TextSecondary, fontSize = 12.sp)
                     }
                 }
             }

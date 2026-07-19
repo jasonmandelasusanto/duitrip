@@ -78,6 +78,17 @@ class AddExpenseViewModel(
             expenseRepo.addExpense(t, draft, createdBy)
         }
     }
+
+    suspend fun addCategory(name: String, emoji: String, createdBy: String): String {
+        tripRepo.addCategory(tripId, name, emoji, createdBy)
+        trip.value = tripRepo.getTrip(tripId) // refresh custom categories
+        return name
+    }
+
+    suspend fun deleteCategory(categoryId: String) {
+        tripRepo.deleteCategory(tripId, categoryId)
+        trip.value = tripRepo.getTrip(tripId)
+    }
 }
 
 @Composable
@@ -120,6 +131,8 @@ fun AddExpenseScreen(tripId: String, expenseId: String?, onBack: () -> Unit) {
     }
 
     val allCategories = remember(t) { Categories.DEFAULT_NAMES + t.customCategories.map { it.name } }
+    val customEmoji = remember(t) { t.customCategories.associate { it.name to it.emoji } }
+    var showNewCategory by remember { mutableStateOf(false) }
 
     ScreenScaffold(title = if (expenseId == null) "Add expense" else "Edit expense", onBack = onBack) { pad ->
         Column(Modifier.fillMaxSize().padding(pad).padding(16.dp).verticalScroll(rememberScrollState())) {
@@ -130,8 +143,13 @@ fun AddExpenseScreen(tripId: String, expenseId: String?, onBack: () -> Unit) {
                 Box(Modifier.width(140.dp)) { CurrencyField(currency, { currency = it }, "Currency") }
             }
             Spacer(Modifier.height(12.dp))
-            LabeledDropdown("Category", category, allCategories, onSelect = { category = it }) {
-                "${Categories.emojiFor(it)}  $it"
+            LabeledDropdown(
+                "Category",
+                category,
+                allCategories + NEW_CATEGORY_SENTINEL,
+                onSelect = { if (it == NEW_CATEGORY_SENTINEL) showNewCategory = true else category = it },
+            ) {
+                if (it == NEW_CATEGORY_SENTINEL) "＋ New category…" else "${Categories.emojiFor(it, customEmoji)}  $it"
             }
             Spacer(Modifier.height(12.dp))
             LabeledDropdown("Paid by", paidBy, memberIds, onSelect = { paidBy = it }) { id ->
@@ -205,6 +223,48 @@ fun AddExpenseScreen(tripId: String, expenseId: String?, onBack: () -> Unit) {
             error?.let { Spacer(Modifier.height(12.dp)); Text(it, color = Danger) }
         }
     }
+
+    if (showNewCategory) {
+        NewCategoryDialog(
+            onDismiss = { showNewCategory = false },
+            onConfirm = { name, emoji ->
+                scope.launch {
+                    try {
+                        category = vm.addCategory(name, emoji, currentUid)
+                    } catch (e: Exception) {
+                        error = e.localizedMessage ?: "Could not add category"
+                    }
+                }
+                showNewCategory = false
+            },
+        )
+    }
+}
+
+private const val NEW_CATEGORY_SENTINEL = " new"
+
+@Composable
+private fun NewCategoryDialog(onDismiss: () -> Unit, onConfirm: (String, String) -> Unit) {
+    var name by remember { mutableStateOf("") }
+    var emoji by remember { mutableStateOf("🏷️") }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("New category") },
+        text = {
+            Column {
+                DField(name, { name = it }, "Name")
+                Spacer(Modifier.height(8.dp))
+                DField(emoji, { emoji = it }, "Emoji")
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(
+                enabled = name.isNotBlank(),
+                onClick = { onConfirm(name.trim(), emoji.ifBlank { "🏷️" }) },
+            ) { Text("Add") }
+        },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable
