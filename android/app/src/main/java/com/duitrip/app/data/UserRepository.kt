@@ -57,4 +57,8 @@ class UserRepository(
         }
         if (updates.isNotEmpty()) doc(uid).update(updates).await()
     }
+
+    suspend fun deleteUserDoc(uid: String) {
+        doc(uid).delete().await()
+    }
 }

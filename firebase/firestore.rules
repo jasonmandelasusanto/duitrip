@@ -32,7 +32,7 @@ service cloud.firestore {
       allow read: if isSignedIn() && uid() == userId;
       allow create, update: if isSignedIn() && uid() == userId
         && request.resource.data.uid == userId;
-      allow delete: if false;
+      allow delete: if isSignedIn() && uid() == userId;
     }
 
     // ── trips/{tripId} ───────────────────────────────────────────────────────────

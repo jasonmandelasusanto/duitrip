@@ -147,6 +147,17 @@ class TripRepository(
         ref.delete().await()
     }
 
+    /**
+     * Called when a user permanently deletes their account. Trips they own are wiped
+     * entirely; trips they only belong to as a member just drop them (owner keeps the
+     * trip and its history intact for the other members).
+     */
+    suspend fun deleteAccountData(uid: String) {
+        for (trip in getUserTrips(uid)) {
+            if (trip.createdBy == uid) deleteTrip(trip.tripId) else removeMember(trip.tripId, uid)
+        }
+    }
+
     // ── Members / invites ────────────────────────────────────────────────────────
     private fun realUids(members: List<TripMember>): List<String> =
         members.filter { it.role != "ghost" && it.userId != null }.map { it.userId!! }

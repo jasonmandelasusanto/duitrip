@@ -5,6 +5,7 @@ import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
@@ -56,4 +57,34 @@ class AuthRepository(
     }
 
     fun signOut() = auth.signOut()
+
+    /** True if the signed-in user authenticates with email/password (vs. Google). */
+    val currentUserIsPasswordAccount: Boolean
+        get() = auth.currentUser?.providerData?.any { it.providerId == EmailAuthProvider.PROVIDER_ID } == true
+
+    /** Re-proves identity with a password before a sensitive op like account deletion. */
+    suspend fun reauthenticateWithPassword(password: String) {
+        val user = auth.currentUser ?: throw IllegalStateException("Not signed in")
+        val email = user.email ?: throw IllegalStateException("No email on this account")
+        user.reauthenticate(EmailAuthProvider.getCredential(email, password)).await()
+    }
+
+    /** Re-proves identity via Google before a sensitive op like account deletion. */
+    suspend fun reauthenticateWithGoogle(context: Context, webClientId: String) {
+        val user = auth.currentUser ?: throw IllegalStateException("Not signed in")
+        val googleIdOption = GetGoogleIdOption.Builder()
+            .setServerClientId(webClientId)
+            .setFilterByAuthorizedAccounts(false)
+            .build()
+        val request = GetCredentialRequest.Builder().addCredentialOption(googleIdOption).build()
+        val result = CredentialManager.create(context).getCredential(context, request)
+        val googleCredential = GoogleIdTokenCredential.createFrom(result.credential.data)
+        val firebaseCredential = GoogleAuthProvider.getCredential(googleCredential.idToken, null)
+        user.reauthenticate(firebaseCredential).await()
+    }
+
+    /** Permanently deletes the signed-in Firebase Auth account. May require a recent sign-in. */
+    suspend fun deleteCurrentUser() {
+        auth.currentUser?.delete()?.await()
+    }
 }

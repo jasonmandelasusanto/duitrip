@@ -14,8 +14,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,10 +28,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException
+import com.duitrip.app.R
 import com.duitrip.app.ui.LocalContainer
 import com.duitrip.app.ui.LocalCurrentUser
 import com.duitrip.app.ui.components.CurrencyField
@@ -58,6 +63,63 @@ fun ProfileScreen(onBack: () -> Unit, onSignOut: () -> Unit) {
     var saved by remember { mutableStateOf(false) }
     var backupMessage by remember { mutableStateOf<String?>(null) }
     var backingUp by remember { mutableStateOf(false) }
+
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var deleteConfirmText by remember { mutableStateOf("") }
+    var deleting by remember { mutableStateOf(false) }
+    var deleteError by remember { mutableStateOf<String?>(null) }
+    // Firestore data (trips/user doc) is already gone by the time we might need this —
+    // only the Auth account deletion remains, retried after the user re-proves identity.
+    var needsPasswordReauth by remember { mutableStateOf(false) }
+    var reauthPassword by remember { mutableStateOf("") }
+    val webClientId = stringResource(R.string.default_web_client_id)
+
+    suspend fun finishAuthDeletion() {
+        try {
+            container.authRepository.deleteCurrentUser()
+            // AuthStateListener in RootViewModel picks up the sign-out and navigates away.
+        } catch (e: FirebaseAuthRecentLoginRequiredException) {
+            if (container.authRepository.currentUserIsPasswordAccount) {
+                needsPasswordReauth = true
+            } else {
+                container.authRepository.reauthenticateWithGoogle(context, webClientId)
+                container.authRepository.deleteCurrentUser()
+            }
+        }
+    }
+
+    fun deleteAccount() {
+        val uid = user?.uid ?: return
+        scope.launch {
+            deleting = true
+            deleteError = null
+            try {
+                container.tripRepository.deleteAccountData(uid)
+                container.userRepository.deleteUserDoc(uid)
+                finishAuthDeletion()
+            } catch (e: Exception) {
+                deleteError = e.localizedMessage ?: "Failed to delete account"
+            } finally {
+                deleting = false
+            }
+        }
+    }
+
+    fun retryAuthDeletionWithPassword() {
+        scope.launch {
+            deleting = true
+            deleteError = null
+            try {
+                container.authRepository.reauthenticateWithPassword(reauthPassword)
+                container.authRepository.deleteCurrentUser()
+                needsPasswordReauth = false
+            } catch (e: Exception) {
+                deleteError = e.localizedMessage ?: "Re-authentication failed"
+            } finally {
+                deleting = false
+            }
+        }
+    }
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")) { uri ->
         if (uri != null && user != null) scope.launch {
@@ -140,6 +202,71 @@ fun ProfileScreen(onBack: () -> Unit, onSignOut: () -> Unit) {
             backupMessage?.let { Text(it, color = TextSecondary) }
             Spacer(Modifier.height(24.dp))
             OutlinedButton(onClick = onSignOut) { Text("Sign out", color = Danger) }
+            Spacer(Modifier.height(24.dp))
+            Text("Danger zone", fontWeight = FontWeight.SemiBold, color = Danger)
+            Text(
+                "Permanently deletes your profile. Trips you own (and their expenses/settlements) are deleted entirely; you're just removed from trips owned by others.",
+                color = TextSecondary,
+            )
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                enabled = user != null && !deleting,
+                onClick = { deleteConfirmText = ""; deleteError = null; showDeleteDialog = true },
+            ) { Text("Delete account", color = Danger) }
         }
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!deleting) showDeleteDialog = false },
+            title = { Text("Delete account permanently?") },
+            text = {
+                Column {
+                    Text("This cannot be undone. Type DELETE to confirm.")
+                    Spacer(Modifier.height(12.dp))
+                    DField(deleteConfirmText, { deleteConfirmText = it }, "Type DELETE")
+                    deleteError?.let {
+                        Spacer(Modifier.height(8.dp))
+                        Text(it, color = Danger)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = deleteConfirmText == "DELETE" && !deleting,
+                    onClick = { showDeleteDialog = false; deleteAccount() },
+                ) { Text(if (deleting) "Deleting…" else "Delete permanently", color = Danger) }
+            },
+            dismissButton = {
+                TextButton(enabled = !deleting, onClick = { showDeleteDialog = false }) { Text("Cancel") }
+            },
+        )
+    }
+
+    if (needsPasswordReauth) {
+        AlertDialog(
+            onDismissRequest = { if (!deleting) needsPasswordReauth = false },
+            title = { Text("Confirm your password") },
+            text = {
+                Column {
+                    Text("For your security, please re-enter your password to finish deleting your account.")
+                    Spacer(Modifier.height(12.dp))
+                    DField(reauthPassword, { reauthPassword = it }, "Password", isPassword = true)
+                    deleteError?.let {
+                        Spacer(Modifier.height(8.dp))
+                        Text(it, color = Danger)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = reauthPassword.isNotBlank() && !deleting,
+                    onClick = { retryAuthDeletionWithPassword() },
+                ) { Text(if (deleting) "Deleting…" else "Confirm & delete", color = Danger) }
+            },
+            dismissButton = {
+                TextButton(enabled = !deleting, onClick = { needsPasswordReauth = false }) { Text("Cancel") }
+            },
+        )
     }
 }
