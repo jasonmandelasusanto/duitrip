@@ -1,12 +1,17 @@
 package com.duitrip.app.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -22,14 +27,16 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.duitrip.app.R
 import com.duitrip.app.data.TripRepository
 import com.duitrip.app.data.model.Trip
 import com.duitrip.app.data.model.User
@@ -74,11 +81,23 @@ fun DashboardScreen(
     val vm: DashboardViewModel = viewModel(factory = VMFactory { DashboardViewModel(container.tripRepository, user) })
     val trips by vm.trips.collectAsStateWithLifecycle()
 
+    val firstName = user.displayName.trim().substringBefore(" ").ifBlank { null }
+
     Scaffold(
         containerColor = BgBase,
         topBar = {
             TopAppBar(
-                title = { Text("Your trips", fontWeight = FontWeight.Bold) },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Image(
+                            painter = painterResource(R.drawable.duitrip_logo),
+                            contentDescription = "Duitrip",
+                            modifier = Modifier.size(28.dp),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Duitrip", fontWeight = FontWeight.Bold)
+                    }
+                },
                 actions = {
                     IconButton(onClick = onProfile) {
                         Icon(Icons.Default.Person, contentDescription = "Profile", tint = TextPrimary)
@@ -93,17 +112,28 @@ fun DashboardScreen(
             }
         },
     ) { pad ->
-        when (val list = trips) {
-            null -> CenteredMessage("", loading = true)
-            else -> if (list.isEmpty()) {
-                EmptyState("No trips yet", "Tap + to start your first trip.")
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(pad),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    items(list) { trip -> TripCard(trip, onClick = { onOpenTrip(trip.tripId) }) }
+        Column(Modifier.fillMaxSize().padding(pad)) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+                Text(
+                    if (firstName != null) "Hello, $firstName," else "Hello,",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary,
+                )
+                Text("Where are you planning to go?", color = TextSecondary)
+            }
+            when (val list = trips) {
+                null -> CenteredMessage("", loading = true)
+                else -> if (list.isEmpty()) {
+                    EmptyState("No trips yet", "Tap + to start your first trip.")
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        items(list) { trip -> TripCard(trip, onClick = { onOpenTrip(trip.tripId) }) }
+                    }
                 }
             }
         }

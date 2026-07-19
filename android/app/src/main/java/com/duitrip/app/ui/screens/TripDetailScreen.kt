@@ -54,6 +54,7 @@ import com.duitrip.app.data.model.Expense
 import com.duitrip.app.data.model.Settlement
 import com.duitrip.app.data.model.Trip
 import com.duitrip.app.domain.Categories
+import com.duitrip.app.domain.Money
 import com.duitrip.app.ui.LocalContainer
 import com.duitrip.app.ui.LocalCurrentUser
 import com.duitrip.app.ui.VMFactory
@@ -390,8 +391,11 @@ private fun ExpenseRow(
         Spacer(Modifier.height(4.dp))
         Text(
             "Paid by $payerName · ${statuses.size} ${if (statuses.size == 1) "person" else "people"}" +
-                if (expense.originalCurrency != expense.destinationCurrency)
-                    " · ${Format.currency(expense.originalAmount, expense.originalCurrency)} @ rate locked" else "",
+                if (expense.originalCurrency != expense.destinationCurrency) {
+                    val rate = Money.roundN(expense.exchangeRateUsed, 4)
+                    " · ${Format.currency(expense.originalAmount, expense.originalCurrency)}" +
+                        " (1 ${expense.originalCurrency} = $rate ${expense.destinationCurrency}, locked)"
+                } else "",
             color = TextSecondary,
             fontSize = 13.sp,
         )

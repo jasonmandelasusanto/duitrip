@@ -16,7 +16,8 @@ object NominatimClient {
     suspend fun search(query: String): List<PlaceSuggestion> = withContext(Dispatchers.IO) {
         try {
             val url = URL(
-                "https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&q=" +
+                "https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5" +
+                    "&accept-language=en&q=" +
                     URLEncoder.encode(query, "UTF-8"),
             )
             val conn = (url.openConnection() as HttpURLConnection).apply {
