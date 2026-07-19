@@ -27,6 +27,10 @@ class ExpenseRepository(
     suspend fun getExpense(tripId: String, expenseId: String): Expense? =
         expenses(tripId).document(expenseId).get().await().toObject(Expense::class.java)
 
+    /** One-shot list used for local XLSX backup. */
+    suspend fun getExpenses(tripId: String): List<Expense> =
+        expenses(tripId).get().await().documents.mapNotNull { it.toObject(Expense::class.java) }
+
     suspend fun addExpense(trip: Trip, draft: ExpenseDraft, createdBy: String): Expense {
         val expenseId = IdGen.expense()
         val expense = buildExpense(trip, draft, expenseId, createdBy, createdAt = Timestamp.now())

@@ -58,8 +58,8 @@ service cloud.firestore {
         && uid() in request.resource.data.memberUids;
       // Members may update the trip; an invited user may update to add themselves.
       allow update: if isMember() || isAcceptingInvite();
-      // Deletion is soft (status = "archived") via update; hard delete is blocked.
-      allow delete: if false;
+      // Only the owner can permanently delete a trip (and its subcollections).
+      allow delete: if isOwner();
 
       // Helpers reading the parent trip for subcollection checks.
       function parentTrip() {

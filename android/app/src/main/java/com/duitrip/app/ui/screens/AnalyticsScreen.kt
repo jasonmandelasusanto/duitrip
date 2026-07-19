@@ -1,6 +1,7 @@
 package com.duitrip.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -19,6 +21,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -116,6 +120,9 @@ fun AnalyticsScreen(tripId: String, onBack: () -> Unit) {
                 }
             }
             item { Text("By category", fontWeight = FontWeight.SemiBold, color = TextPrimary) }
+            if (analytics.group.byCategory.isNotEmpty()) item {
+                PieChart(analytics.group.byCategory.map { PieSlice("${it.emoji}  ${it.category}", it.amount, it.percentage) }, cur)
+            }
             items(analytics.group.byCategory) { slice -> CategoryBar(slice, cur) }
 
             // Spend by day (parity with the PWA's by-day chart)
@@ -147,6 +154,9 @@ fun AnalyticsScreen(tripId: String, onBack: () -> Unit) {
             }
 
             item { Spacer(Modifier.height(8.dp)); Text("By member", fontWeight = FontWeight.SemiBold, color = TextPrimary) }
+            if (analytics.group.byMember.isNotEmpty()) item {
+                PieChart(analytics.group.byMember.map { PieSlice(it.displayName + if (it.isGhost) " 👻" else "", it.totalPaid, it.percentage) }, cur)
+            }
             items(analytics.group.byMember) { m ->
                 SurfaceCard {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -167,6 +177,34 @@ fun AnalyticsScreen(tripId: String, onBack: () -> Unit) {
                         }
                         Text(entry.date, color = TextSecondary, fontSize = 12.sp)
                     }
+                }
+            }
+        }
+    }
+}
+
+private data class PieSlice(val label: String, val amount: Double, val percentage: Double)
+
+@Composable
+private fun PieChart(slices: List<PieSlice>, currency: String) {
+    val colors = listOf(Color(0xFF4DC3EA), Color(0xFF10B981), Color(0xFFF59E0B), Color(0xFFEF4444), Color(0xFF8B5CF6), Color(0xFFEC4899))
+    SurfaceCard {
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Canvas(Modifier.size(150.dp)) {
+                var start = -90f
+                slices.forEachIndexed { index, slice ->
+                    val sweep = (slice.percentage * 3.6).toFloat()
+                    if (sweep > 0f) drawArc(colors[index % colors.size], start, sweep, useCenter = false, style = Stroke(width = 28.dp.toPx()))
+                    start += sweep
+                }
+            }
+            Column(Modifier.padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                slices.forEachIndexed { index, slice ->
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Box(Modifier.size(10.dp).clip(RoundedCornerShape(5.dp)).background(colors[index % colors.size]))
+                        Text("  ${slice.label}", color = TextPrimary, fontSize = 12.sp, maxLines = 1)
+                    }
+                    Text("${Format.currency(slice.amount, currency)} · ${slice.percentage}%", color = TextSecondary, fontSize = 11.sp)
                 }
             }
         }

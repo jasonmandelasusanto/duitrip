@@ -1,10 +1,19 @@
 package com.duitrip.app.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -14,31 +23,82 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import com.google.firebase.auth.FirebaseAuth
 import com.duitrip.app.ui.LocalContainer
 import com.duitrip.app.ui.LocalCurrentUser
 import com.duitrip.app.ui.components.CurrencyField
 import com.duitrip.app.ui.components.DField
 import com.duitrip.app.ui.components.PrimaryButton
 import com.duitrip.app.ui.components.ScreenScaffold
+import com.duitrip.app.ui.theme.BgBase
 import com.duitrip.app.ui.theme.Danger
+import com.duitrip.app.ui.theme.Teal
 import com.duitrip.app.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun ProfileScreen(onBack: () -> Unit, onSignOut: () -> Unit) {
     val container = LocalContainer.current
     val user = LocalCurrentUser.current
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     var displayName by remember(user) { mutableStateOf(user?.displayName ?: "") }
     var currency by remember(user) { mutableStateOf(user?.homeCurrency ?: "") }
     var saving by remember { mutableStateOf(false) }
     var saved by remember { mutableStateOf(false) }
+    var backupMessage by remember { mutableStateOf<String?>(null) }
+    var backingUp by remember { mutableStateOf(false) }
+
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")) { uri ->
+        if (uri != null && user != null) scope.launch {
+            backingUp = true
+            try {
+                val bytes = container.backupRepository.export(user.uid)
+                requireNotNull(context.contentResolver.openOutputStream(uri)).use { it.write(bytes) }
+                backupMessage = "Backup exported"
+            } catch (e: Exception) { backupMessage = e.localizedMessage ?: "Export failed" } finally { backingUp = false }
+        }
+    }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null && user != null) scope.launch {
+            backingUp = true
+            try {
+                val bytes = requireNotNull(context.contentResolver.openInputStream(uri)).use { it.readBytes() }
+                val count = container.backupRepository.restore(bytes, user)
+                backupMessage = "$count trip${if (count == 1) "" else "s"} restored"
+            } catch (e: Exception) { backupMessage = e.localizedMessage ?: "Import failed" } finally { backingUp = false }
+        }
+    }
 
     ScreenScaffold(title = "Profile", onBack = onBack) { pad ->
         Column(Modifier.fillMaxSize().padding(pad).padding(16.dp)) {
-            Text(user?.email ?: "", color = TextSecondary)
+            val photoUrl = FirebaseAuth.getInstance().currentUser?.photoUrl?.toString() ?: user?.photoURL
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (photoUrl != null) {
+                    AsyncImage(model = photoUrl, contentDescription = "Google profile photo", modifier = Modifier.size(64.dp).clip(CircleShape))
+                } else {
+                    Box(
+                        modifier = Modifier.size(64.dp).clip(CircleShape).background(Teal),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text((user?.displayName ?: user?.email ?: "?").take(1).uppercase(), color = BgBase, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Column {
+                    Text(user?.displayName ?: "Profile", fontWeight = FontWeight.SemiBold)
+                    Text(user?.email ?: "", color = TextSecondary)
+                }
+            }
             Spacer(Modifier.height(16.dp))
             DField(displayName, { displayName = it; saved = false }, "Display name")
             Spacer(Modifier.height(12.dp))
@@ -61,6 +121,23 @@ fun ProfileScreen(onBack: () -> Unit, onSignOut: () -> Unit) {
                     }
                 },
             )
+            Spacer(Modifier.height(24.dp))
+            Text("Backup & restore", fontWeight = FontWeight.SemiBold)
+            Text("Exports all accessible trips, one worksheet per trip. Imports always create new trips.", color = TextSecondary)
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    enabled = user != null && !backingUp,
+                    modifier = Modifier.weight(1f),
+                    onClick = { exportLauncher.launch("duitrip-backup-${SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())}.xlsx") },
+                ) { Text(if (backingUp) "Working…" else "Export XLSX") }
+                OutlinedButton(
+                    enabled = user != null && !backingUp,
+                    modifier = Modifier.weight(1f),
+                    onClick = { importLauncher.launch(arrayOf("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")) },
+                ) { Text("Import XLSX") }
+            }
+            backupMessage?.let { Text(it, color = TextSecondary) }
             Spacer(Modifier.height(24.dp))
             OutlinedButton(onClick = onSignOut) { Text("Sign out", color = Danger) }
         }

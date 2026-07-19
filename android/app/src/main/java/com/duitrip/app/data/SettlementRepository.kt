@@ -59,6 +59,10 @@ class SettlementRepository(
     fun observeSettlementsRaw(tripId: String): Flow<List<Settlement>> =
         settlements(tripId).snapshotsFlow()
 
+    /** One-shot list used for local XLSX backup. */
+    suspend fun getSettlements(tripId: String): List<Settlement> =
+        settlements(tripId).get().await().documents.mapNotNull { it.toObject(Settlement::class.java) }
+
     /** Settlements with display names resolved from the trip, newest first. */
     fun observeSettlements(tripId: String, trip: Trip): Flow<List<Settlement>> =
         observeSettlementsRaw(tripId).map { list ->

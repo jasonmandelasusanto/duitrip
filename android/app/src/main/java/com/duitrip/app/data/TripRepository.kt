@@ -38,6 +38,10 @@ class TripRepository(
     suspend fun getTrip(tripId: String): Trip? =
         tripDoc(tripId).get().await().toObject(Trip::class.java)
 
+    /** One-shot trip list used for local XLSX backup. */
+    suspend fun getUserTrips(uid: String): List<Trip> =
+        trips.whereArrayContains("memberUids", uid).get().await().documents.mapNotNull { it.toObject(Trip::class.java) }
+
     /**
      * One-time self-heal for trips created by the old backend, which lack the top-level
      * [Trip.memberUids] array the app queries on. Finds trips where the signed-in user
@@ -132,6 +136,15 @@ class TripRepository(
     /** Soft-delete (owner-only, enforced by rules). */
     suspend fun archiveTrip(tripId: String) {
         tripDoc(tripId).update(mapOf("status" to "archived", "updatedAt" to Timestamp.now())).await()
+    }
+
+    /** Permanently removes a trip and its expense/settlement subcollections. */
+    suspend fun deleteTrip(tripId: String) {
+        val ref = tripDoc(tripId)
+        // Firestore document deletes do not cascade into subcollections.
+        ref.collection("expenses").get().await().documents.forEach { it.reference.delete().await() }
+        ref.collection("settlements").get().await().documents.forEach { it.reference.delete().await() }
+        ref.delete().await()
     }
 
     // ── Members / invites ────────────────────────────────────────────────────────
