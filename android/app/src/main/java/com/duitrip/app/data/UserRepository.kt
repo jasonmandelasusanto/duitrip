@@ -5,6 +5,7 @@ import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 
 /** users/{uid} — profile + onboarding (home currency). */
@@ -13,9 +14,17 @@ class UserRepository(
 ) {
     private fun doc(uid: String) = db.collection("users").document(uid)
 
-    fun userFlow(uid: String): Flow<User?> = doc(uid).snapshotFlow()
+    /**
+     * A profile lives at users/{uid}; that path (and Firebase Auth), rather than the
+     * duplicated `uid` field inside the document, is the source of truth. Older PWA
+     * profiles may not contain that field, which otherwise makes trip queries use an
+     * empty or stale uid after a successful sign-in.
+     */
+    fun userFlow(uid: String): Flow<User?> =
+        doc(uid).snapshotFlow<User>().map { profile -> profile?.copy(uid = uid) }
 
-    suspend fun getUser(uid: String): User? = doc(uid).get().await().toObject(User::class.java)
+    suspend fun getUser(uid: String): User? =
+        doc(uid).get().await().toObject(User::class.java)?.copy(uid = uid)
 
     /**
      * Create the users/{uid} document on first sign-in if it doesn't exist yet.
