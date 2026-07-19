@@ -64,7 +64,10 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: gradle -p android assembleRelease
+        # releaseVersion drives versionName/versionCode (see app/build.gradle.kts) so the
+        # built APK reports the same version as this GitHub release; the in-app update
+        # checker relies on that match.
+        run: gradle -p android assembleRelease -PreleaseVersion=${{ github.ref_name }}
 
       - name: Rename APK
         run: |

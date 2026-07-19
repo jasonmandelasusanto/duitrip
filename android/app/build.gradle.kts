@@ -5,6 +5,17 @@ plugins {
     alias(libs.plugins.google.services)
 }
 
+// Release CI passes the git tag (e.g. "v2.3.0") via -PreleaseVersion so the built APK's
+// own version matches the GitHub release it ships in — the in-app update checker compares
+// against this. Local/debug builds fall back to a dev placeholder that never "has an update".
+val releaseVersionName = (project.findProperty("releaseVersion") as String?)?.removePrefix("v") ?: "0.0.0-dev"
+val releaseVersionCode = releaseVersionName
+    .split("-").first()
+    .split(".")
+    .mapNotNull { it.toIntOrNull() }
+    .let { parts -> (parts.getOrElse(0) { 0 }) * 1_000_000 + (parts.getOrElse(1) { 0 }) * 1_000 + parts.getOrElse(2) { 0 } }
+    .coerceAtLeast(1)
+
 android {
     namespace = "com.duitrip.app"
     compileSdk = 34
@@ -13,8 +24,8 @@ android {
         applicationId = "com.duitrip.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = releaseVersionCode
+        versionName = releaseVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

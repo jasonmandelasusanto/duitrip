@@ -19,6 +19,6 @@ class DuitripApp : Application() {
         FirebaseFirestore.getInstance().firestoreSettings = firestoreSettings {
             setLocalCacheSettings(persistentCacheSettings {})
         }
-        container = AppContainer()
+        container = AppContainer(this)
     }
 }
