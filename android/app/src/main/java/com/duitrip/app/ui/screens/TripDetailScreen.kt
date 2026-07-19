@@ -157,6 +157,6 @@ private fun ExpenseRow(expense: Expense, trip: Trip, settlements: List<Settlemen
             )
         }
         Spacer(Modifier.height(4.dp))
-        Text("Paid by $payerName · ${statuses.size} people", color = TextSecondary, fontSize = 13.sp)
+        Text("Paid by $payerName · ${statuses.size} ${if (statuses.size == 1) "person" else "people"}", color = TextSecondary, fontSize = 13.sp)
     }
 }

@@ -108,8 +108,9 @@ private fun TripCard(trip: Trip, onClick: () -> Unit) {
         Spacer(Modifier.height(4.dp))
         Text(trip.destination, color = TextSecondary)
         Spacer(Modifier.height(8.dp))
+        val memberCount = trip.members.size
         Text(
-            "${Format.dateRange(trip.startDate, trip.endDate)}  ·  ${trip.members.size} members  ·  ${Format.tripDays(trip.startDate, trip.endDate)} days",
+            "${Format.dateRange(trip.startDate, trip.endDate)}  ·  $memberCount ${if (memberCount == 1) "member" else "members"}  ·  ${Format.tripDays(trip.startDate, trip.endDate)} days",
             color = TextSecondary,
             fontSize = 13.sp,
         )
