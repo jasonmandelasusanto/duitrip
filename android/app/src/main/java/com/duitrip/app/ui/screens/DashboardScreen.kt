@@ -32,6 +32,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.duitrip.app.data.TripRepository
 import com.duitrip.app.data.model.Trip
+import com.duitrip.app.data.model.User
+import kotlinx.coroutines.launch
 import com.duitrip.app.ui.LocalContainer
 import com.duitrip.app.ui.LocalCurrentUser
 import com.duitrip.app.ui.VMFactory
@@ -48,9 +50,16 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import androidx.lifecycle.viewModelScope
 
-class DashboardViewModel(repo: TripRepository, uid: String) : ViewModel() {
+class DashboardViewModel(repo: TripRepository, user: User) : ViewModel() {
     val trips: StateFlow<List<Trip>?> =
-        repo.observeUserTrips(uid).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+        repo.observeUserTrips(user.uid).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    init {
+        // Self-heal old-backend trips missing the memberUids field so they show up.
+        viewModelScope.launch {
+            try { repo.backfillMyTrips(user) } catch (_: Exception) { /* ignore */ }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -61,8 +70,8 @@ fun DashboardScreen(
     onProfile: () -> Unit,
 ) {
     val container = LocalContainer.current
-    val uid = LocalCurrentUser.current?.uid ?: return
-    val vm: DashboardViewModel = viewModel(factory = VMFactory { DashboardViewModel(container.tripRepository, uid) })
+    val user = LocalCurrentUser.current ?: return
+    val vm: DashboardViewModel = viewModel(factory = VMFactory { DashboardViewModel(container.tripRepository, user) })
     val trips by vm.trips.collectAsStateWithLifecycle()
 
     Scaffold(

@@ -38,6 +38,33 @@ class TripRepository(
     suspend fun getTrip(tripId: String): Trip? =
         tripDoc(tripId).get().await().toObject(Trip::class.java)
 
+    /**
+     * One-time self-heal for trips created by the old backend, which lack the top-level
+     * [Trip.memberUids] array the app queries on. Finds trips where the signed-in user
+     * is a member (via the embedded members[]) but isn't in memberUids yet, and backfills
+     * memberUids/inviteEmails so they show up again. Idempotent and safe to call on every
+     * sign-in; only writes trips that are actually missing the field.
+     */
+    suspend fun backfillMyTrips(user: User) {
+        val snapshot = trips.get().await()
+        for (doc in snapshot.documents) {
+            val trip = doc.toObject(Trip::class.java) ?: continue
+            val amMember = trip.members.any {
+                it.userId == user.uid || (it.email != null && it.email == user.email)
+            }
+            if (amMember && user.uid !in trip.memberUids) {
+                val newUids = realUids(trip.members).toMutableList()
+                if (user.uid !in newUids) newUids.add(user.uid)
+                doc.reference.update(
+                    mapOf(
+                        "memberUids" to newUids,
+                        "inviteEmails" to pendingEmails(trip.invites),
+                    ),
+                ).await()
+            }
+        }
+    }
+
     // ── Trip CRUD ────────────────────────────────────────────────────────────────
     suspend fun createTrip(
         owner: User,
