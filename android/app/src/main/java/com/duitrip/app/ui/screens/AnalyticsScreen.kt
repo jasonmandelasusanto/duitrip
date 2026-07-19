@@ -2,6 +2,8 @@ package com.duitrip.app.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,18 +14,24 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
@@ -36,7 +44,6 @@ import com.duitrip.app.data.model.Expense
 import com.duitrip.app.data.model.Trip
 import com.duitrip.app.domain.Analytics
 import com.duitrip.app.domain.AnalyticsExpense
-import com.duitrip.app.domain.CategorySlice
 import com.duitrip.app.domain.MemberRef
 import com.duitrip.app.domain.ShareAmount
 import com.duitrip.app.ui.LocalContainer
@@ -54,6 +61,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import java.time.ZoneId
+import kotlin.math.atan2
+import kotlin.math.sqrt
 
 class AnalyticsViewModel(tripRepo: TripRepository, expenseRepo: ExpenseRepository, tripId: String) : ViewModel() {
     val trip: StateFlow<Trip?> = tripRepo.observeTrip(tripId).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
@@ -123,7 +132,6 @@ fun AnalyticsScreen(tripId: String, onBack: () -> Unit) {
             if (analytics.group.byCategory.isNotEmpty()) item {
                 PieChart(analytics.group.byCategory.map { PieSlice("${it.emoji}  ${it.category}", it.amount, it.percentage) }, cur)
             }
-            items(analytics.group.byCategory) { slice -> CategoryBar(slice, cur) }
 
             // Spend by day (parity with the PWA's by-day chart)
             if (analytics.group.byDay.isNotEmpty()) {
@@ -157,75 +165,98 @@ fun AnalyticsScreen(tripId: String, onBack: () -> Unit) {
             if (analytics.group.byMember.isNotEmpty()) item {
                 PieChart(analytics.group.byMember.map { PieSlice(it.displayName + if (it.isGhost) " 👻" else "", it.totalPaid, it.percentage) }, cur)
             }
-            items(analytics.group.byMember) { m ->
-                SurfaceCard {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(m.displayName + if (m.isGhost) " 👻" else "", color = TextPrimary)
-                        Text("${Format.currency(m.totalPaid, cur)}  (${m.percentage}%)", color = TextSecondary)
-                    }
-                }
-            }
-
-            // Your spending timeline (parity with the PWA's individual timeline)
-            if (analytics.individual.timeline.isNotEmpty()) {
-                item { Spacer(Modifier.height(8.dp)); Text("Your timeline", fontWeight = FontWeight.SemiBold, color = TextPrimary) }
-                items(analytics.individual.timeline) { entry ->
-                    SurfaceCard {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("${entry.emoji}  ${entry.description}", color = TextPrimary, fontSize = 14.sp)
-                            Text(Format.currency(entry.myShare, cur), color = TextSecondary, fontSize = 14.sp)
-                        }
-                        Text(entry.date, color = TextSecondary, fontSize = 12.sp)
-                    }
-                }
-            }
         }
     }
 }
 
 private data class PieSlice(val label: String, val amount: Double, val percentage: Double)
 
+/**
+ * Donut chart on top (tap a slice to see its amount/percentage), plain legend below —
+ * stacking them (instead of side-by-side) avoids the chart and labels overlapping
+ * regardless of how long a category/member name is.
+ */
 @Composable
 private fun PieChart(slices: List<PieSlice>, currency: String) {
     val colors = listOf(Color(0xFF4DC3EA), Color(0xFF10B981), Color(0xFFF59E0B), Color(0xFFEF4444), Color(0xFF8B5CF6), Color(0xFFEC4899))
+    var selected by remember(slices) { mutableStateOf<Int?>(null) }
+
     SurfaceCard {
-        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-            Canvas(Modifier.size(150.dp)) {
+        Box(Modifier.fillMaxWidth(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+            val strokeWidth = 32.dp
+            Canvas(
+                Modifier
+                    .size(200.dp)
+                    .pointerInput(slices) {
+                        detectTapGestures { offset ->
+                            val center = Offset(size.width / 2f, size.height / 2f)
+                            val dx = offset.x - center.x
+                            val dy = offset.y - center.y
+                            val distance = sqrt(dx * dx + dy * dy)
+                            val outerRadius = size.width / 2f
+                            val strokePx = strokeWidth.toPx()
+                            if (distance < outerRadius - strokePx || distance > outerRadius) {
+                                selected = null
+                                return@detectTapGestures
+                            }
+                            val rawDeg = Math.toDegrees(atan2(dy, dx).toDouble())
+                            val angle = (rawDeg + 90.0 + 360.0) % 360.0
+                            var cumulative = 0.0
+                            var hit: Int? = null
+                            for ((index, slice) in slices.withIndex()) {
+                                val sweep = slice.percentage * 3.6
+                                if (angle >= cumulative && angle < cumulative + sweep) {
+                                    hit = index
+                                    break
+                                }
+                                cumulative += sweep
+                            }
+                            selected = hit
+                        }
+                    },
+            ) {
                 var start = -90f
                 slices.forEachIndexed { index, slice ->
                     val sweep = (slice.percentage * 3.6).toFloat()
-                    if (sweep > 0f) drawArc(colors[index % colors.size], start, sweep, useCenter = false, style = Stroke(width = 28.dp.toPx()))
+                    if (sweep > 0f) {
+                        val width = if (selected == index) strokeWidth.toPx() + 8.dp.toPx() else strokeWidth.toPx()
+                        drawArc(colors[index % colors.size], start, sweep, useCenter = false, style = Stroke(width = width))
+                    }
                     start += sweep
                 }
             }
-            Column(Modifier.padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                slices.forEachIndexed { index, slice ->
-                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        Box(Modifier.size(10.dp).clip(RoundedCornerShape(5.dp)).background(colors[index % colors.size]))
-                        Text("  ${slice.label}", color = TextPrimary, fontSize = 12.sp, maxLines = 1)
-                    }
-                    Text("${Format.currency(slice.amount, currency)} · ${slice.percentage}%", color = TextSecondary, fontSize = 11.sp)
+            val sel = selected?.let { slices.getOrNull(it) }
+            Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
+                if (sel != null) {
+                    Text(sel.label, color = TextPrimary, fontSize = 13.sp, maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    Text(Format.currency(sel.amount, currency), color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("${sel.percentage}%", color = TextSecondary, fontSize = 13.sp)
+                } else {
+                    Text("Tap a slice", color = TextSecondary, fontSize = 12.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun CategoryBar(slice: CategorySlice, currency: String) {
-    SurfaceCard {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("${slice.emoji}  ${slice.category}", color = TextPrimary)
-            Text("${Format.currency(slice.amount, currency)}  (${slice.percentage}%)", color = TextSecondary)
-        }
-        Spacer(Modifier.height(6.dp))
-        Box(
-            Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(BgBorder),
-        ) {
-            Box(
-                Modifier.fillMaxWidth((slice.percentage / 100.0).toFloat().coerceIn(0f, 1f))
-                    .height(8.dp).clip(RoundedCornerShape(4.dp)).background(Teal),
-            )
+        Spacer(Modifier.height(16.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            slices.forEachIndexed { index, slice ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { selected = if (selected == index) null else index },
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.size(10.dp).clip(RoundedCornerShape(5.dp)).background(colors[index % colors.size]))
+                    Spacer(Modifier.width(8.dp))
+                    Text(slice.label, color = TextPrimary, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "${Format.currency(slice.amount, currency)} · ${slice.percentage}%",
+                        color = TextSecondary,
+                        fontSize = 12.sp,
+                        softWrap = false,
+                    )
+                }
+            }
         }
     }
 }

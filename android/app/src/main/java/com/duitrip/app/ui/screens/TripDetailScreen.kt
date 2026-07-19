@@ -19,8 +19,11 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -110,6 +113,22 @@ class TripDetailViewModel(
     }
 }
 
+private enum class ExpenseSort(val label: String) {
+    NEWEST("Newest first"),
+    NAME_ASC("Name (A-Z)"),
+    NAME_DESC("Name (Z-A)"),
+    AMOUNT_DESC("Amount (high-low)"),
+    AMOUNT_ASC("Amount (low-high)"),
+}
+
+private fun List<Expense>.sortedForDisplay(mode: ExpenseSort): List<Expense> = when (mode) {
+    ExpenseSort.NEWEST -> this
+    ExpenseSort.NAME_ASC -> sortedBy { it.description.lowercase() }
+    ExpenseSort.NAME_DESC -> sortedByDescending { it.description.lowercase() }
+    ExpenseSort.AMOUNT_DESC -> sortedByDescending { it.amountInDestinationCurrency }
+    ExpenseSort.AMOUNT_ASC -> sortedBy { it.amountInDestinationCurrency }
+}
+
 /** Mirrors the old backend rule: creator may delete within 24h; owner anytime. */
 private fun canDelete(expense: Expense, trip: Trip, uid: String): Boolean {
     if (trip.createdBy == uid) return true
@@ -141,6 +160,8 @@ fun TripDetailScreen(
     val settlements by vm.settlements.collectAsStateWithLifecycle()
 
     var categoryFilter by remember { mutableStateOf<String?>(null) }
+    var sortMode by remember { mutableStateOf(ExpenseSort.NEWEST) }
+    var showSortMenu by remember { mutableStateOf(false) }
     var expandedExpense by remember { mutableStateOf<String?>(null) }
     var showEditTrip by remember { mutableStateOf(false) }
     var showArchiveConfirm by remember { mutableStateOf(false) }
@@ -208,7 +229,29 @@ fun TripDetailScreen(
                             }
                             Spacer(Modifier.height(4.dp))
                         }
-                        val filtered = if (categoryFilter == null) list else list.filter { it.category == categoryFilter }
+                        Row(
+                            Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Box {
+                                AssistChip(
+                                    onClick = { showSortMenu = true },
+                                    leadingIcon = { Icon(Icons.Default.Sort, contentDescription = null) },
+                                    label = { Text(sortMode.label) },
+                                )
+                                DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
+                                    ExpenseSort.entries.forEach { mode ->
+                                        DropdownMenuItem(
+                                            text = { Text(mode.label) },
+                                            onClick = { sortMode = mode; showSortMenu = false },
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        val filtered = (if (categoryFilter == null) list else list.filter { it.category == categoryFilter })
+                            .sortedForDisplay(sortMode)
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
