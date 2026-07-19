@@ -1,6 +1,7 @@
 package com.duitrip.app.data.model
 
 import com.google.firebase.Timestamp
+import com.google.firebase.firestore.Exclude
 
 data class TripMember(
     val userId: String? = null,
@@ -13,7 +14,10 @@ data class TripMember(
     val ghostId: String? = null,
 ) {
     /** userId for real members, ghostId for ghosts — the id used across splits. */
+    @get:Exclude
     val memberId: String? get() = userId ?: ghostId
+
+    @get:Exclude
     val isGhost: Boolean get() = role == "ghost"
 }
 
@@ -56,6 +60,6 @@ data class Trip(
     val createdAt: Timestamp? = null,
     val updatedAt: Timestamp? = null,
 ) {
+    @get:Exclude
     val realMembers: List<TripMember> get() = members.filter { it.role != "ghost" }
-    val isOwner: (String) -> Boolean get() = { uid -> createdBy == uid }
 }

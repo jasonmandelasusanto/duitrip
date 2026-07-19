@@ -2,10 +2,13 @@ package com.duitrip.app.ui.theme
 
 import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
@@ -47,6 +50,11 @@ fun DuitripTheme(
     MaterialTheme(
         colorScheme = DuitripColorScheme,
         typography = Typography,
-        content = content,
-    )
+    ) {
+        // Wrap in a Surface so the default content (text/icon) color is the theme's
+        // light color everywhere — otherwise bare Text() falls back to black.
+        Surface(modifier = Modifier.fillMaxSize(), color = BgBase, contentColor = TextPrimary) {
+            content()
+        }
+    }
 }

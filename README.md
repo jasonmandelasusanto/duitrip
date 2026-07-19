@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="duitrip%20logo.png" alt="Duitrip" width="140" />
+</p>
+
 # Duitrip
 
 **Split trip expenses, effortlessly.** Duitrip is a native **Android** app for tracking

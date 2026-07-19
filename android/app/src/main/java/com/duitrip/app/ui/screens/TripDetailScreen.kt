@@ -1,6 +1,7 @@
 package com.duitrip.app.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -19,6 +20,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -92,7 +94,8 @@ fun TripDetailScreen(
             CenteredMessage("", loading = true)
             return@ScreenScaffold
         }
-        Column(Modifier.fillMaxSize().padding(pad)) {
+        Box(Modifier.fillMaxSize().padding(pad)) {
+        Column(Modifier.fillMaxSize()) {
             // Header + quick actions
             Column(Modifier.padding(16.dp)) {
                 Text(
@@ -128,9 +131,10 @@ fun TripDetailScreen(
             onClick = onAddExpense,
             containerColor = Teal,
             contentColor = BgBase,
-            modifier = Modifier.padding(24.dp),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(24.dp),
         ) {
             Icon(Icons.Default.Add, contentDescription = "Add expense")
+        }
         }
     }
 }

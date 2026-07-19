@@ -1,5 +1,6 @@
 package com.duitrip.app.data
 
+import android.util.Log
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.channels.awaitClose
@@ -17,11 +18,16 @@ object IdGen {
     fun category(): String = "custom_${hex(8)}"
 }
 
-/** Emits the current list every time the query result changes. */
+/**
+ * Emits the current list every time the query result changes. On a Firestore error
+ * (e.g. permission-denied) it logs and emits an empty list instead of throwing, so a
+ * rules/permission problem shows an empty screen rather than crashing the app.
+ */
 inline fun <reified T : Any> Query.snapshotsFlow(): Flow<List<T>> = callbackFlow {
     val registration = addSnapshotListener { snapshot, error ->
         if (error != null) {
-            close(error)
+            Log.e("Firestore", "query failed: ${error.message}", error)
+            trySend(emptyList())
             return@addSnapshotListener
         }
         if (snapshot != null) {
@@ -31,11 +37,12 @@ inline fun <reified T : Any> Query.snapshotsFlow(): Flow<List<T>> = callbackFlow
     awaitClose { registration.remove() }
 }
 
-/** Emits the document (or null if it doesn't exist) whenever it changes. */
+/** Emits the document (or null) whenever it changes; logs + emits null on error. */
 inline fun <reified T : Any> DocumentReference.snapshotFlow(): Flow<T?> = callbackFlow {
     val registration = addSnapshotListener { snapshot, error ->
         if (error != null) {
-            close(error)
+            Log.e("Firestore", "doc listen failed: ${error.message}", error)
+            trySend(null)
             return@addSnapshotListener
         }
         trySend(snapshot?.toObject(T::class.java))
